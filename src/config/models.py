@@ -1,0 +1,157 @@
+"""Data models for configuration entities."""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+
+
+@dataclass
+class ExportConfig:
+    """SQL Server export configuration."""
+    # Connection
+    server: str
+    database: str
+    username: str
+    password: str = ""
+    port: int = 1433
+
+    # Queries
+    detail_query: str = ""
+    summary_query: str = ""
+
+    # Parameters for {{placeholder}} substitution
+    parameters: dict = field(default_factory=dict)
+
+    # Output
+    output_dir: str = "output/exports"
+    output_filename: str = "export_result.xlsx"
+
+    # Timeout in seconds
+    timeout: int = 30
+
+
+@dataclass
+class TemplateColumn:
+    """Column definition in an analysis template."""
+    title: str
+    source_field: str
+    format: str = "text"   # text | number | money | percent
+    width: int = 15
+
+
+@dataclass
+class SortRule:
+    """Sorting rule."""
+    field: str
+    order: str = "asc"     # asc | desc
+
+
+@dataclass
+class MatchKey:
+    """Defines how to match template rows to data rows."""
+    template_fields: list[str] = field(default_factory=list)
+    data_fields: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SummaryRule:
+    """Aggregation rule definition."""
+    type: str              # sum | count | avg | percentage
+    source_field: str
+    target_field: str
+    base_field: str = ""   # required when type='percentage'
+
+
+@dataclass
+class EmployeeRow:
+    """Pre-defined employee row in a template."""
+    seq: int
+    area: str
+    store: str
+    name: str
+    employee_id: str
+    department: str
+
+
+@dataclass
+class AnalysisTemplate:
+    """Full analysis template definition."""
+    name: str
+    display_name: str
+    description: str = ""
+    columns: list[TemplateColumn] = field(default_factory=list)
+    group_by: list[str] = field(default_factory=list)
+    sort_by: list[SortRule] = field(default_factory=list)
+    match_key: MatchKey = field(default_factory=MatchKey)
+    summary_rules: list[SummaryRule] = field(default_factory=list)
+    employee_list: list[EmployeeRow] = field(default_factory=list)
+
+
+# ── Runtime result models ──
+
+
+@dataclass
+class ExportResult:
+    """Result of a data export operation."""
+    config_name: str
+    executed_at: datetime = field(default_factory=datetime.now)
+    row_count: int = 0
+    columns: list[str] = field(default_factory=list)
+    file_path: str = ""
+    elapsed_seconds: float = 0.0
+    error: str | None = None
+
+
+@dataclass
+class AnalysisRow:
+    """A single row in the analysis result table."""
+    seq: int
+    area: str
+    store: str
+    name: str
+    employee_id: str
+    sales_amount: float = 0.0
+    percentage: float = 0.0
+    department: str = ""
+    matched: bool = True
+
+
+@dataclass
+class AnalysisTotal:
+    """Totals row."""
+    total_sales: float = 0.0
+    total_employees: int = 0
+    total_stores: int = 0
+    total_percentage: float = 100.0
+
+
+@dataclass
+class AnalysisMetadata:
+    """Analysis run metadata."""
+    raw_data_rows: int = 0
+    template_rows: int = 0
+    matched_rows: int = 0
+    unmatched_rows: int = 0
+    match_rate: float = 0.0
+    elapsed_seconds: float = 0.0
+    date_range: tuple = ()
+
+
+@dataclass
+class AnalysisResult:
+    """Full analysis result."""
+    template_name: str = ""
+    executed_at: datetime = field(default_factory=datetime.now)
+    rows: list[AnalysisRow] = field(default_factory=list)
+    unmatched_rows: list[dict] = field(default_factory=list)
+    total_row: AnalysisTotal = field(default_factory=AnalysisTotal)
+    metadata: AnalysisMetadata = field(default_factory=AnalysisMetadata)
+
+
+@dataclass
+class AnalysisReport:
+    """Generated report paths."""
+    markdown_path: str = ""
+    excel_path: str = ""
+    generated_at: datetime = field(default_factory=datetime.now)
+    template_name: str = ""
+    date_range: tuple = ()

@@ -63,3 +63,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+<!-- SPECKIT START -->
+Current feature: AIExport (AI 导出与分析系统)
+Plan: specs/001-ai-export-analysis/plan.md
+Spec: specs/001-ai-export-analysis/spec.md
+Tasks: specs/001-ai-export-analysis/tasks.md
+<!-- SPECKIT END -->

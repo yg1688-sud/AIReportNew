@@ -1,0 +1,60 @@
+# AIExport 导出配置
+# 用于从 SQL Server 导出销售明细数据
+
+server: "192.168.1.100"          # SQL Server 地址（按实际环境修改）
+port: 1433
+database: "RetailDB"             # 数据库名称（按实际环境修改）
+username: "readonly_user"        # 只读查询用户（按实际环境修改）
+password: "${DB_PASSWORD}"       # 密码（支持 ${ENV_VAR} 引用环境变量）
+
+timeout: 30                      # 连接和查询超时（秒）
+
+# ─── 明细查询（支持 {{param}} 参数占位符） ───
+detail_query: |
+  SELECT
+      os.ThirdOrderId AS 订单号,
+      ogs.ThirdMedicineId AS 商品ERPID,
+      ogs.CostPrice AS 成本价,
+      ogs.Price AS 销售单价,
+      ogs.Num AS 销售数量,
+      ogs.PayAmount AS 销售金额,
+      os.FullPayTime AS 支付时间,
+      os.ThirdStoreId AS 销售门店ID,
+      os.ThirdStoreName AS 销售门店,
+      os.ThirdOrderId AS 第三方订单号,
+      ogs.thirdstaffid AS 销售店员ERPID,
+      ogs.thirdstaffname AS 销售店员姓名
+  FROM PurchaseMedicineOrder os
+  JOIN PurchaseMedicineOrderGood ogs
+    ON os.PurchaseMedicineOrderId = ogs.PurchaseMedicineOrderId
+    AND ogs.EnterpriseID = os.EnterpriseID
+  WHERE os.EnterpriseID = '{{enterprise_id}}'
+    AND ogs.ThirdMedicineId IN ({{medicine_ids}})
+    AND os.FullPayTime >= '{{start_date}}'
+    AND os.FullPayTime < '{{end_date}}'
+    AND ogs.thirdstaffid IN ({{staff_ids}})
+
+# ─── 汇总查询（计算连锁月度总销售额，用于占比计算） ───
+summary_query: |
+  SELECT SUM(ogs.PayAmount) AS 总销售额
+  FROM PurchaseMedicineOrderGood ogs
+  JOIN PurchaseMedicineOrder os
+    ON os.PurchaseMedicineOrderId = ogs.PurchaseMedicineOrderId
+    AND ogs.EnterpriseID = os.EnterpriseID
+  WHERE ogs.EnterpriseID = '{{enterprise_id}}'
+    AND os.EnterpriseID = '{{enterprise_id}}'
+    AND ogs.ThirdMedicineId IN ({{medicine_ids}})
+    AND os.FullPayTime >= '{{start_date}} 00:00:00'
+    AND os.FullPayTime < '{{end_date}} 00:00:00'
+
+# ─── 查询参数 ───
+parameters:
+  enterprise_id: "68288c8975fb4fa1a4b94da70b9f2765"
+  start_date: "2026-06-01"
+  end_date: "2026-06-16"
+  medicine_ids: "'150087','215254','204080','218919','261543','191033','260434','261525','260435','260436','260428','261553','181301','260438','261544','181291','260442','150094','185350','260433','214778','215787','181297','150090','181299','260443','245729','150102','150092','215271','236548','236549','236550','236580','246564','245065','218904','207873','242574','242576','242575','244928','260452','266484','2508114','2503392','2503391','166670','150088','150089','172377','207868','2510297','2512897','2513717','2518136','2520636','2520637','2514378','2520777','2520778','2522034','2522123','2522640','2524244','2524535','2524536','2524537','2528313','2528310','2528311'"
+  staff_ids: "'14061','2828','9076','12456','10767','12320','1976','8637','7816','9091','10474','9464','11918','9084','13353','2002','12026','2555','8950','3403','2045','8635','4695','7732','8623','13367','5338','8156','8507','12403','9551','8107','8105','5402','7689','4624','12318','2459','2522','5793','10328','6864','7772','5485','15058','10385','8724','5886','13480','7768','2938','2855','8267','5396','2016','8772','2486','9015','11508','2473'"
+
+# ─── 输出配置 ───
+output_dir: "output/exports"
+output_filename: "export_result.xlsx"

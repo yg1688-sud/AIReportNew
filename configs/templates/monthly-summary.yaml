@@ -1,0 +1,41 @@
+# 分析模版: 月度销售汇总（示例）
+# 用途: 按片区汇总月度销售数据
+
+name: "monthly-summary"
+display_name: "月度销售汇总"
+description: "按片区+门店维度汇总月度销售数据，计算各片区占比"
+
+columns:
+  - { title: "序号", source_field: "seq", format: "number", width: 6 }
+  - { title: "片区", source_field: "area", format: "text", width: 12 }
+  - { title: "门店", source_field: "store", format: "text", width: 20 }
+  - { title: "员工数", source_field: "employee_count", format: "number", width: 10 }
+  - { title: "销售金额", source_field: "sales_amount", format: "money", width: 16 }
+  - { title: "占比", source_field: "percentage", format: "percent", width: 8 }
+
+group_by: ["片区", "门店"]
+
+match_key:
+  template_fields: ["门店"]
+  data_fields: ["销售门店"]
+
+sort_by:
+  - { field: "sales_amount", order: "desc" }
+
+summary_rules:
+  - { type: "sum", source_field: "销售金额", target_field: "sales_amount" }
+  - { type: "percentage", source_field: "sales_amount", target_field: "percentage", base_field: "total_sales" }
+
+# 示例：按门店定义（不含员工维度）
+employee_list:
+  # 门店级模版使用 store_name 作为唯一标识（match_key=门店）
+  - { seq: 1,  area: "渝中",     store: "保康",           name: "保康店合计",       employee_id: "STORE_001", department: "渝中片区" }
+  - { seq: 2,  area: "渝中",     store: "天元堂",         name: "天元堂店合计",     employee_id: "STORE_002", department: "渝中片区" }
+  - { seq: 3,  area: "渝中",     store: "庆余堂",         name: "庆余堂店合计",     employee_id: "STORE_003", department: "渝中片区" }
+  - { seq: 4,  area: "九龙坡",   store: "龙康国药",       name: "龙康国药店合计",   employee_id: "STORE_004", department: "九龙坡片区" }
+  - { seq: 5,  area: "九龙坡",   store: "九龙坡区15店",   name: "九龙坡15店合计",   employee_id: "STORE_005", department: "九龙坡片区" }
+  - { seq: 6,  area: "北碚",     store: "北碚1店",        name: "北碚1店合计",      employee_id: "STORE_006", department: "北碚片区" }
+  - { seq: 7,  area: "北碚",     store: "北碚6店",        name: "北碚6店合计",      employee_id: "STORE_007", department: "北碚片区" }
+  - { seq: 8,  area: "南岸",     store: "南岸区108店",    name: "南岸108店合计",    employee_id: "STORE_008", department: "南岸片区" }
+  - { seq: 9,  area: "沙坪坝",   store: "沙坪坝区11店",   name: "沙坪坝11店合计",   employee_id: "STORE_009", department: "沙坪坝片区" }
+  - { seq: 10, area: "万州",    store: "万州6店",        name: "万州6店合计",      employee_id: "STORE_010", department: "万州片区" }
