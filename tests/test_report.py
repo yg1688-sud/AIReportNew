@@ -77,5 +77,5 @@ class TestExcelReport:
         from openpyxl import load_workbook
         wb = load_workbook(path)
         ws = wb.active
-        # First data row is row 8
-        assert ws.cell(8, 6).value == 7981.00
+        # First data row is row 10 (header at row 9 after 2 new summary rows)
+        assert ws.cell(10, 6).value == 7981.00

@@ -145,6 +145,7 @@ class AnalysisResult:
     unmatched_rows: list[dict] = field(default_factory=list)
     total_row: AnalysisTotal = field(default_factory=AnalysisTotal)
     metadata: AnalysisMetadata = field(default_factory=AnalysisMetadata)
+    chain_total: float = 0.0  # From summary query — chain-wide total sales
 
 
 @dataclass

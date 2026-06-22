@@ -47,6 +47,7 @@ def generate_excel_report(
     result: AnalysisResult,
     output_dir: str = "output/reports",
     display_name: str = "",
+    chain_total: float | None = None,
 ) -> str:
     """Generate a formatted Excel report from analysis results.
 
@@ -80,16 +81,22 @@ def generate_excel_report(
     ws.row_dimensions[1].height = 30
 
     # ── Summary rows ──
+    actual_chain = chain_total if chain_total else result.chain_total
     ws.cell(row=3, column=1, value="连锁月度总销售额：").font = Font(bold=True)
-    ws.cell(row=3, column=3, value=result.total_row.total_sales).number_format = MONEY_FORMAT
-    ws.cell(row=4, column=1, value="有销售记录员工数：").font = Font(bold=True)
-    ws.cell(row=4, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}")
-    ws.cell(row=5, column=1, value="覆盖门店数：").font = Font(bold=True)
-    ws.cell(row=5, column=3, value=result.total_row.total_stores)
+    ws.cell(row=3, column=3, value=actual_chain).number_format = MONEY_FORMAT
+    ws.cell(row=4, column=1, value="模版员工合计：").font = Font(bold=True)
+    ws.cell(row=4, column=3, value=result.total_row.total_sales).number_format = MONEY_FORMAT
+    pct = (result.total_row.total_sales / actual_chain * 100) if actual_chain > 0 else 0.0
+    ws.cell(row=5, column=1, value="占比：").font = Font(bold=True)
+    ws.cell(row=5, column=3, value=f"{pct:.2f}%")
+    ws.cell(row=6, column=1, value="有销售记录员工数：").font = Font(bold=True)
+    ws.cell(row=6, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}")
+    ws.cell(row=7, column=1, value="覆盖门店数：").font = Font(bold=True)
+    ws.cell(row=7, column=3, value=result.total_row.total_stores)
 
     # ── Table header (row 7) ──
     headers = ["序号", "片区", "门店", "姓名", "员工ID", "销售金额", "占比", "部门"]
-    header_row = 7
+    header_row = 9
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_idx, value=header)
         cell.font = HEADER_FONT

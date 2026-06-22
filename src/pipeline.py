@@ -1,7 +1,8 @@
 """Full pipeline orchestration: export → analyze → report."""
 
+import calendar
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 import pandas as pd
 import structlog
@@ -21,11 +22,51 @@ class PipelineError(Exception):
     """Raised when a pipeline stage fails."""
 
 
+def get_auto_date_range(today: date | None = None) -> tuple[str, str]:
+    """Calculate date range based on today's date for scheduled exports.
+
+    Rules:
+    - On the 16th of the month: 1st → 16th of current month
+    - On the 1st of the month: 1st of last month → 1st of current month
+
+    Args:
+        today: Override for testing (defaults to date.today()).
+
+    Returns:
+        (start_date, end_date) as YYYY-MM-DD strings.
+    """
+    t = today or date.today()
+
+    if t.day == 16:
+        start = date(t.year, t.month, 1)
+        end = date(t.year, t.month, 16)
+        log.info("schedule.mid_month", range=f"{start} ~ {end}")
+    elif t.day == 1:
+        # First of the month → previous full month
+        if t.month == 1:
+            prev_month = 12
+            prev_year = t.year - 1
+        else:
+            prev_month = t.month - 1
+            prev_year = t.year
+        start = date(prev_year, prev_month, 1)
+        end = date(t.year, t.month, 1)  # 1st of current month (exclusive)
+        log.info("schedule.beginning_of_month", range=f"{start} ~ {end}")
+    else:
+        # Default fallback: current month up to today
+        start = date(t.year, t.month, 1)
+        end = t
+        log.info("schedule.default", range=f"{start} ~ {end}")
+
+    return (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+
+
 def run_full_pipeline(
     config_path: str,
     template_name: str,
     date_start: str | None = None,
     date_end: str | None = None,
+    auto_date: bool = False,
 ) -> AnalysisReport:
     """Execute the complete AIExport pipeline.
 
@@ -50,6 +91,11 @@ def run_full_pipeline(
 
     # ── Stage 1: Load config + override dates ──
     config = load_export_config(config_path)
+    if auto_date:
+        auto_start, auto_end = get_auto_date_range()
+        config.parameters["start_date"] = auto_start
+        config.parameters["end_date"] = auto_end
+        log.info("pipeline.auto_date", start=auto_start, end=auto_end)
     if date_start:
         config.parameters["start_date"] = date_start
     if date_end:
@@ -90,11 +136,13 @@ def run_full_pipeline(
         analysis_result,
         output_dir="output/reports",
         display_name=template.display_name,
+        chain_total=analysis_result.chain_total,
     )
     xlsx_path = generate_excel_report(
         analysis_result,
         output_dir="output/reports",
         display_name=template.display_name,
+        chain_total=analysis_result.chain_total,
     )
 
     print(f"[OK] [报告] 已生成:")

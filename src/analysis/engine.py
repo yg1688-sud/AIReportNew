@@ -99,4 +99,5 @@ def run_analysis(
         unmatched_rows=unmatched_rows,
         total_row=total_row,
         metadata=metadata,
+        chain_total=total_sales,
     )

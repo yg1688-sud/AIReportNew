@@ -38,7 +38,11 @@ def cli():
 )
 @click.option("--date-start", default=None, help="覆盖起始日期 (YYYY-MM-DD)")
 @click.option("--date-end", default=None, help="覆盖结束日期 (YYYY-MM-DD)")
-def run(template, config, date_start, date_end):
+@click.option(
+    "--auto-date", is_flag=True, default=False,
+    help="自动计算日期范围：16号导出1-15号，1号导出上月整月",
+)
+def run(template, config, date_start, date_end, auto_date):
     """一键执行全流程：导出 → 分析 → 报告。"""
     try:
         run_full_pipeline(
@@ -46,6 +50,7 @@ def run(template, config, date_start, date_end):
             template_name=template,
             date_start=date_start,
             date_end=date_end,
+            auto_date=auto_date,
         )
     except (PipelineError, TemplateNotFoundError, ValidationError, FileNotFoundError) as e:
         click.echo(f"[ERROR] 错误: {e}", err=True)
