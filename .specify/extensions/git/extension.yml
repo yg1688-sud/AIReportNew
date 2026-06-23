@@ -1,0 +1,19 @@
+name: git
+description: Git integration for Speckit — branch creation, auto-commit, and push
+version: 1.0.0
+author: AIReportNew Project
+enabled: true
+
+hooks:
+  before_specify:
+    - command: speckit.git.create-branch
+      description: Create feature branch from master
+      enabled: true
+      optional: false
+      condition: null
+  after_implement:
+    - command: speckit.git.commit
+      description: Commit and push implementation changes
+      enabled: true
+      optional: true
+      condition: null

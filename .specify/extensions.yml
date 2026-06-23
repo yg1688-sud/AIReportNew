@@ -1,8 +1,18 @@
 installed:
 - agent-context
+- git
 settings:
   auto_execute_hooks: true
 hooks:
+  before_specify:
+  - extension: git
+    command: speckit.git.create-branch
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: null
+    description: Create feature branch from master before specification
+    condition: null
   after_specify:
   - extension: agent-context
     command: speckit.agent-context.update
@@ -20,4 +30,13 @@ hooks:
     priority: 10
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after planning
+    condition: null
+  after_implement:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Commit and push changes?
+    description: Auto-commit and push after implementation completes
     condition: null
