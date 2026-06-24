@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.config.loader import load_export_config, load_template, ConfigLoadError
+from src.config.loader import load_export_config, ConfigLoadError
 from src.config.models import ExportConfig, AnalysisTemplate
 from src.config.validator import validate_export_config, validate_template, ValidationError
 
@@ -96,32 +96,10 @@ class TestExportConfigValidation:
             validate_export_config(config)
 
 
-class TestTemplateLoading:
-    """TC-CFG-004: Template loading."""
+class TestTemplateValidation:
+    """TC-CFG-004: Template validation."""
 
-    def test_load_valid_template(self, temp_dir):
-        """Given valid template YAML → When load → Then AnalysisTemplate populated."""
-        template_path = temp_dir / "template.yaml"
-        template_path.write_text("""
-name: test-template
-display_name: 测试模版
-columns:
-  - { title: "序号", source_field: "seq", format: "number" }
-group_by: ["片区"]
-match_key:
-  template_fields: ["员工ID"]
-  data_fields: ["销售店员ERPID"]
-employee_list:
-  - { seq: 1, area: "渝中", store: "保康", name: "测试", employee_id: "14694", department: "测试部门" }
-""", encoding="utf-8")
-
-        template = load_template(str(template_path))
-        assert template.name == "test-template"
-        assert template.display_name == "测试模版"
-        assert len(template.employee_list) == 1
-        assert template.employee_list[0].employee_id == "14694"
-
-    def test_duplicate_employee_id_validation(self, temp_dir):
+    def test_duplicate_employee_id_validation(self):
         """Given template with duplicate employee_id → Then ValidationError."""
         from src.config.models import EmployeeRow, TemplateColumn
         template = AnalysisTemplate(

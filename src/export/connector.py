@@ -1,10 +1,18 @@
 """SQL Server connection management via pymssql."""
 
+import os
 import time
 
 import structlog
 
 log = structlog.get_logger()
+
+
+def _resolve_env(value: str) -> str:
+    """Resolve ${ENV_VAR} reference to its actual value."""
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        return os.environ.get(value[2:-1], "")
+    return value
 
 
 class ConnectionError(Exception):
@@ -18,29 +26,51 @@ class QueryTimeoutError(Exception):
 class SQLServerConnector:
     """Context-managed pymssql connection wrapper."""
 
-    def __init__(self, config):
-        """Initialize with ExportConfig."""
+    def __init__(self, config, overrides: dict | None = None):
+        """Initialize with ExportConfig and optional per-group overrides.
+
+        Args:
+            config: ExportConfig with root-level connection settings.
+            overrides: Optional dict with any of server, port, database,
+                       username, password, timeout to override config values.
+        """
         self.config = config
+        self._overrides = overrides or {}
         self._conn = None
         self._connected_at: float = 0.0
         self._cursor = None
+
+    def _resolve(self, key: str, default):
+        """Return override value if set, otherwise config default."""
+        val = self._overrides.get(key)
+        if val is None or val == "" or val == 0:
+            return default
+        return val
 
     def __enter__(self):
         try:
             import pymssql
             self._connected_at = time.time()
+
+            server = self._resolve("server", self.config.server)
+            port = self._resolve("port", self.config.port)
+            database = self._resolve("database", self.config.database)
+            username = self._resolve("username", self.config.username)
+            password = _resolve_env(self._resolve("password", self.config.password))
+            timeout = self._resolve("timeout", self.config.timeout)
+
             self._conn = pymssql.connect(
-                server=self.config.server,
-                port=self.config.port,
-                database=self.config.database,
-                user=self.config.username,
-                password=self.config.password,
-                login_timeout=self.config.timeout,
-                timeout=self.config.timeout,
+                server=server,
+                port=port,
+                database=database,
+                user=username,
+                password=password,
+                login_timeout=timeout,
+                timeout=timeout,
                 charset="UTF-8",
             )
             self._cursor = self._conn.cursor()
-            log.info("db.connected", server=self.config.server, port=self.config.port)
+            log.info("db.connected", server=server, port=port, database=database)
             return self
         except Exception as e:
             raise ConnectionError(

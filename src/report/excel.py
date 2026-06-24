@@ -1,5 +1,6 @@
 """Excel report generation with formatting."""
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -14,10 +15,12 @@ try:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XLImage
 except ImportError:
     Workbook = None
     Font = Alignment = Border = PatternFill = Side = None
     get_column_letter = None
+    XLImage = None
 
 
 HEADER_FONT = None
@@ -48,6 +51,7 @@ def generate_excel_report(
     output_dir: str = "output/reports",
     display_name: str = "",
     chain_total: float | None = None,
+    chart_paths: list[str] | None = None,
 ) -> str:
     """Generate a formatted Excel report from analysis results.
 
@@ -55,6 +59,8 @@ def generate_excel_report(
         result: The analysis result to report on.
         output_dir: Directory for the output file.
         display_name: Override display name for sheet title.
+        chain_total: Chain-wide total sales override.
+        chart_paths: Optional chart PNG paths to embed after the data table.
 
     Returns:
         Path to the generated .xlsx file.
@@ -156,6 +162,22 @@ def generate_excel_report(
     col_widths = [6, 10, 15, 10, 14, 18, 8, 55]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
+
+    # ── Embed chart images (if provided) ──
+    if chart_paths and XLImage is not None:
+        img_row = total_r + 3  # 2 rows gap after total row
+        for cp in chart_paths:
+            if os.path.isfile(cp):
+                try:
+                    img = XLImage(cp)
+                    # Scale to fit within print area
+                    img.width = min(img.width, 600)
+                    img.height = img.height * (600 / max(img.width, 1))
+                    cell_ref = f"A{img_row}"
+                    ws.add_image(img, cell_ref)
+                    img_row += 35  # ~35 rows per chart image
+                except Exception as e:
+                    log.warning("excel.chart_embed_failed", path=cp, error=str(e))
 
     # ── Write file ──
     out_dir = Path(output_dir)

@@ -25,6 +25,7 @@ def run_analysis(
     data: pd.DataFrame,
     config: ExportConfig,
     total_sales_override: float | None = None,
+    summary_value: float | None = None,
 ) -> AnalysisResult:
     """Run the full analysis pipeline on exported data.
 
@@ -38,6 +39,7 @@ def run_analysis(
         data: Raw export data as a pandas DataFrame.
         config: ExportConfig (used to resolve parameters for summary query).
         total_sales_override: If provided, skip the summary query and use this value.
+        summary_value: Pre-executed summary query result (avoids re-connecting).
 
     Returns:
         Fully populated AnalysisResult.
@@ -49,8 +51,8 @@ def run_analysis(
     matched_rows, unmatched_rows = match_employees(template, data)
 
     # Step 2: Get total sales for percentage calculation
-    total_sales: float = total_sales_override or 0.0
-    if total_sales_override is None and config.summary_query:
+    total_sales: float = total_sales_override or summary_value or 0.0
+    if total_sales == 0.0 and config.summary_query:
         try:
             with SQLServerConnector(config) as db:
                 summary_sql = _resolve_query(config.summary_query, config.parameters)
@@ -71,6 +73,17 @@ def run_analysis(
     elapsed = time.time() - start
 
     # Step 5: Assemble metadata
+    # Adjust end_date for display: SQL uses < end_date (exclusive),
+    # so actual data ends on end_date - 1 day.
+    raw_start = config.parameters.get("start_date", "")
+    raw_end = config.parameters.get("end_date", "")
+    try:
+        from datetime import timedelta
+        end_dt = datetime.strptime(raw_end, "%Y-%m-%d") - timedelta(days=1)
+        display_end = end_dt.strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        display_end = raw_end
+
     metadata = AnalysisMetadata(
         raw_data_rows=len(data),
         template_rows=len(template.employee_list),
@@ -79,10 +92,7 @@ def run_analysis(
         match_rate=(sum(1 for r in matched_rows if r.matched) / len(template.employee_list))
             if template.employee_list else 0.0,
         elapsed_seconds=round(elapsed, 2),
-        date_range=(
-            config.parameters.get("start_date", ""),
-            config.parameters.get("end_date", ""),
-        ),
+        date_range=(raw_start, display_end),
     )
 
     log.info(

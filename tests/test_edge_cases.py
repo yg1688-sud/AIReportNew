@@ -12,7 +12,6 @@ from src.config.models import (
     MatchKey, TemplateColumn,
 )
 from src.config.validator import validate_export_config, ValidationError
-from src.template.registry import TemplateRegistry
 
 
 class TestDateBoundaries:
@@ -116,31 +115,6 @@ class TestSuccessCriteria:
 
         assert expected["14694"] == 7981
         assert expected["6653"] == 148
-
-    def test_ten_template_capacity(self, temp_dir):
-        """SC-004/TC-EDGE-007: Registry handles 10 templates."""
-        tmpl_dir = temp_dir / "templates"
-        tmpl_dir.mkdir()
-
-        for i in range(10):
-            (tmpl_dir / f"t{i}.yaml").write_text(f"""
-name: template-{i}
-display_name: 模版{i}
-columns:
-  - {{ title: "序号", source_field: "seq", format: "number" }}
-group_by: ["片区"]
-match_key:
-  template_fields: ["员工ID"]
-  data_fields: ["销售店员ERPID"]
-employee_list:
-  - {{ seq: 1, area: "测试", store: "测试店", name: "测试", employee_id: "{10000+i}", department: "测试" }}
-""", encoding="utf-8")
-
-        registry = TemplateRegistry(str(tmpl_dir))
-        assert len(registry.list_all()) == 10
-        for i in range(10):
-            t = registry.get(f"template-{i}")
-            assert t.display_name == f"模版{i}"
 
     def test_error_returns_within_5_seconds(self):
         """SC-006/TC-EDGE-008: Config error returns in < 5 seconds."""

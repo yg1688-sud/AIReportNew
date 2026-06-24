@@ -27,10 +27,10 @@ def match_employees(
     Returns:
         (matched_rows, unmatched_data_rows)
     """
-    if template.match_key.data_fields and template.match_key.template_fields:
+    if template.match_key.data_fields and template.match_key.data_fields[0]:
         data_key_field = template.match_key.data_fields[0]  # e.g., "销售店员ERPID"
     else:
-        data_key_field = "销售店员ERPID"
+        raise ValueError("match_key.data_fields 缺少数据匹配字段 — 请配置 match_key")
 
     # Ensure data key column is string type for reliable matching
     if data_key_field in data.columns:
@@ -52,8 +52,17 @@ def match_employees(
     matched_data_indices: set = set()
     matched_rows: list[AnalysisRow] = []
 
-    # Determine sales column name
-    sales_col = "销售金额" if "销售金额" in data.columns else None
+    # Determine sales column: use template.value_field, then auto-detect
+    sales_col = template.value_field if template.value_field and template.value_field in data.columns else None
+    if not sales_col:
+        # Auto-detect: first column with '金额' in name, then first numeric column
+        for col in data.columns:
+            if "金额" in str(col):
+                sales_col = str(col)
+                break
+    if not sales_col:
+        numeric_cols = data.select_dtypes(include=["number"]).columns
+        sales_col = str(numeric_cols[0]) if len(numeric_cols) > 0 else None
 
     for emp in template.employee_list:
         mask = data[data_key_field] == emp.employee_id

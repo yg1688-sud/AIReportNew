@@ -13,93 +13,51 @@ def runner():
     return CliRunner()
 
 
-class TestCLIListTemplates:
-    """TC-CLI-002: list-templates command."""
-
-    def test_list_templates(self, runner, temp_dir):
-        """Given templates directory with YAML files → When list-templates → Then shows names."""
-        import yaml
-        tmpl_dir = temp_dir / "templates"
-        tmpl_dir.mkdir()
-        (tmpl_dir / "test.yaml").write_text("""
-name: test-template
-display_name: 测试模版
-columns:
-  - { title: "序号", source_field: "seq", format: "number" }
-group_by: ["片区"]
-match_key:
-  template_fields: ["员工ID"]
-  data_fields: ["销售店员ERPID"]
-employee_list:
-  - { seq: 1, area: "渝中", store: "保康", name: "测试", employee_id: "14694", department: "测试部门" }
-""", encoding="utf-8")
-
-        result = runner.invoke(cli, ["list-templates", "--templates-dir", str(tmpl_dir)])
-        assert result.exit_code == 0
-        assert "test-template" in result.output
-
-
 class TestCLIValidate:
     """TC-CLI-003/004: validate command."""
 
     def test_validate_passes(self, runner, temp_dir):
-        """Given valid config + template → When validate → Then exit 0 + '通过'."""
-        config_dir = temp_dir / "configs"
-        config_dir.mkdir()
-        tmpl_dir = config_dir / "templates"
-        tmpl_dir.mkdir()
-
-        # Valid export config
-        (config_dir / "export.yaml").write_text("""
-server: localhost
+        """Given valid export.yaml with queries → When validate → Then exit 0 + '通过'."""
+        config_path = temp_dir / "export.yaml"
+        config_path.write_text("""
+server: "localhost"
 port: 1433
-database: TestDB
-username: user
-password: ${DB_PASSWORD}
-detail_query: "SELECT 1"
-parameters:
-  start_date: "2026-06-01"
-  end_date: "2026-06-16"
+database: "TestDB"
+username: "user"
+password: "${DB_PASSWORD}"
+queries:
+  test-group:
+    detail_query: "SELECT * FROM test"
+    summary_query: "SELECT SUM(amount) FROM test"
+    parameters:
+      enterprise_id: "68288c8975fb4fa1a4b94da70b9f2765"
+    output_filename: "test.xlsx"
+    template:
+      display_name: "Test"
+      group_by: ["片区"]
+      match_key:
+        template: ["ID"]
+        data: ["员工ID"]
+      value_field: "销售金额"
 """, encoding="utf-8")
 
-        # Valid template
-        (tmpl_dir / "valid.yaml").write_text("""
-name: valid-template
-display_name: 有效模版
-columns:
-  - { title: "序号", source_field: "seq", format: "number" }
-group_by: ["片区"]
-match_key:
-  template_fields: ["员工ID"]
-  data_fields: ["销售店员ERPID"]
-employee_list:
-  - { seq: 1, area: "渝中", store: "保康", name: "测试", employee_id: "14694", department: "测试部门" }
-""", encoding="utf-8")
-
-        result = runner.invoke(cli, ["validate", "--config-dir", str(config_dir)])
+        result = runner.invoke(cli, ["validate", "--config", str(config_path)])
         assert result.exit_code == 0
         assert "通过" in result.output
 
     def test_validate_detects_error(self, runner, temp_dir):
         """Given invalid config → When validate → Then exit non-zero + shows error."""
-        config_dir = temp_dir / "configs"
-        config_dir.mkdir()
-        tmpl_dir = config_dir / "templates"
-        tmpl_dir.mkdir()
-
-        # Export config missing required fields
-        (config_dir / "export.yaml").write_text("""
+        config_path = temp_dir / "export.yaml"
+        config_path.write_text("""
 server: ""
 port: 1433
 database: ""
 username: ""
 password: ${DB_PASSWORD}
-detail_query: "SELECT 1"
 """, encoding="utf-8")
 
-        result = runner.invoke(cli, ["validate", "--config-dir", str(config_dir)])
-        # Should fail due to missing required fields
-        assert result.exit_code != 0 or "问题" in result.output
+        result = runner.invoke(cli, ["validate", "--config", str(config_path)])
+        assert result.exit_code != 0 or "ERROR" in result.output
 
 
 class TestCLIHelp:
@@ -111,6 +69,42 @@ class TestCLIHelp:
         assert result.exit_code == 0
         assert "run" in result.output
         assert "export" in result.output
-        assert "analyze" in result.output
-        assert "list-templates" in result.output
+        assert "show-queries" in result.output
         assert "validate" in result.output
+
+
+class TestCLIShowQueries:
+    """TC-CLI-005: show-queries command."""
+
+    def test_show_queries(self, runner, temp_dir):
+        """Given config with queries block → When show-queries → Then lists groups."""
+        config_path = temp_dir / "export.yaml"
+        config_path.write_text("""
+server: "localhost"
+port: 1433
+database: "TestDB"
+username: "user"
+password: "${DB_PASSWORD}"
+queries:
+  group-a:
+    detail_query: "SELECT 1"
+    output_filename: "a.xlsx"
+    template:
+      group_by: ["片区"]
+      match_key:
+        template: ["ID"]
+        data: ["员工ID"]
+  group-b:
+    detail_query: "SELECT 2"
+    output_filename: "b.xlsx"
+    template:
+      group_by: ["门店"]
+      match_key:
+        template: ["门店"]
+        data: ["销售门店"]
+""", encoding="utf-8")
+
+        result = runner.invoke(cli, ["show-queries", "--config", str(config_path)])
+        assert result.exit_code == 0
+        assert "group-a" in result.output
+        assert "group-b" in result.output

@@ -1,4 +1,4 @@
-"""Template module — template registry and model definitions."""
-from src.template.registry import TemplateRegistry
+"""Template auto-generation module."""
+from src.template.auto import auto_generate_template, auto_detect_value_field
 
-__all__ = ["TemplateRegistry"]
+__all__ = ["auto_generate_template", "auto_detect_value_field"]

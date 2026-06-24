@@ -1,25 +1,29 @@
 """Full pipeline orchestration: export → analyze → report."""
 
-import calendar
 import time
+import structlog
 from datetime import datetime, date, timedelta
 
 import pandas as pd
-import structlog
 
 from src.config.loader import load_export_config
-from src.config.models import AnalysisReport, ExportResult
+from src.config.models import (
+    AnalysisReport,
+    QueryGroupConfig,
+    PipelineResult,
+)
 from src.export.executor import execute_export
 from src.analysis.engine import run_analysis
-from src.report.markdown import generate_markdown_report
 from src.report.excel import generate_excel_report
-from src.template.registry import TemplateRegistry
 
 log = structlog.get_logger()
 
 
 class PipelineError(Exception):
     """Raised when a pipeline stage fails."""
+
+
+# ── Date helpers ──
 
 
 def get_auto_date_range(today: date | None = None) -> tuple[str, str]:
@@ -42,7 +46,6 @@ def get_auto_date_range(today: date | None = None) -> tuple[str, str]:
         end = date(t.year, t.month, 16)
         log.info("schedule.mid_month", range=f"{start} ~ {end}")
     elif t.day == 1:
-        # First of the month → previous full month
         if t.month == 1:
             prev_month = 12
             prev_year = t.year - 1
@@ -50,10 +53,9 @@ def get_auto_date_range(today: date | None = None) -> tuple[str, str]:
             prev_month = t.month - 1
             prev_year = t.year
         start = date(prev_year, prev_month, 1)
-        end = date(t.year, t.month, 1)  # 1st of current month (exclusive)
+        end = date(t.year, t.month, 1)
         log.info("schedule.beginning_of_month", range=f"{start} ~ {end}")
     else:
-        # Default fallback: current month up to today
         start = date(t.year, t.month, 1)
         end = t
         log.info("schedule.default", range=f"{start} ~ {end}")
@@ -61,36 +63,164 @@ def get_auto_date_range(today: date | None = None) -> tuple[str, str]:
     return (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
 
 
+def _adjust_end_date_for_display(raw_end: str) -> str:
+    """Subtract 1 day from end_date for display (SQL uses < end_date exclusive)."""
+    try:
+        end_dt = datetime.strptime(raw_end, "%Y-%m-%d") - timedelta(days=1)
+        return end_dt.strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        return raw_end
+
+
+# ── Single query group execution ──
+
+
+def _run_single_group(
+    config,
+    qg: QueryGroupConfig,
+    output_dir: str = "output/reports",
+    generate_charts: bool = True,
+    generate_pdf: bool = True,
+) -> AnalysisReport:
+    """Execute pipeline stages for a single query group.
+
+    Returns an AnalysisReport with all generated file paths.
+    """
+    # ── Stage 1: Export ──
+    log.info("pipeline.stage", stage="export", group=qg.name)
+    export_result = execute_export(config, qg)
+    if export_result.error:
+        raise PipelineError(f"[{qg.name}] 导出失败: {export_result.error}")
+
+    print(f"[OK] [{qg.name}] 导出: {export_result.row_count} 行, 耗时 {export_result.elapsed_seconds}s")
+    print(f"   → {export_result.file_path}")
+
+    # ── Stage 2: Load data ──
+    data = pd.read_excel(export_result.file_path)
+    if data.empty:
+        print(f"[WARN] [{qg.name}] 导出数据为空，跳过分析")
+        return AnalysisReport(template_name=qg.name)
+
+    # ── Stage 3: Auto-generate template from data ──
+    if not qg.template:
+        # Export-only mode — no analysis or report
+        print(f"[OK] [{qg.name}] 纯导出模式（无 template），跳过分析和报告")
+        return AnalysisReport(template_name=qg.name)
+
+    from src.template.auto import auto_generate_template
+    template = auto_generate_template(data, qg.name, qg.template)
+    log.info("pipeline.auto_template", group=qg.name, employees=len(template.employee_list))
+
+    # ── Stage 4: Analysis ──
+    log.info("pipeline.stage", stage="analyze", group=qg.name)
+    analysis_result = run_analysis(
+        template, data, config,
+        summary_value=export_result.summary_value,
+    )
+
+    matched = analysis_result.metadata.matched_rows
+    not_matched = analysis_result.metadata.unmatched_rows
+    total = analysis_result.total_row.total_sales
+
+    print(f"[OK] [{qg.name}] 分析: 匹配 {matched}/{len(template.employee_list)}")
+    if not_matched > 0:
+        print(f"   [WARN] {not_matched} 条未匹配")
+    print(f"   [DATA] 合计销售额: ¥{total:,.2f}")
+
+    # ── Stage 5: Charts ──
+    chart_paths: list[str] = []
+    if generate_charts:
+        try:
+            from src.chart.generator import generate_charts_for_analysis
+            chart_paths = generate_charts_for_analysis(analysis_result, output_dir=output_dir)
+            if chart_paths:
+                print(f"[OK] [{qg.name}] 图表: {len(chart_paths)} 张")
+        except Exception as e:
+            log.warning("pipeline.chart_failed", group=qg.name, error=str(e))
+
+    # ── Stage 6: Reports ──
+    log.info("pipeline.stage", stage="report", group=qg.name)
+    display_name = qg.template.display_name if qg.template else qg.name
+    chain_total = analysis_result.chain_total
+
+    xlsx_path = generate_excel_report(
+        analysis_result,
+        output_dir=output_dir,
+        display_name=display_name,
+        chain_total=chain_total,
+        chart_paths=chart_paths,
+    )
+
+    pdf_path = ""
+    if generate_pdf:
+        try:
+            from src.report.pdf import generate_pdf_report
+            pdf_path = generate_pdf_report(
+                analysis_result,
+                output_dir=output_dir,
+                display_name=display_name,
+                chain_total=chain_total,
+                chart_paths=chart_paths,
+            )
+        except Exception as e:
+            log.warning("pipeline.pdf_failed", group=qg.name, error=str(e))
+
+    # Determine display date range
+    raw_start = qg.parameters.get("start_date", "")
+    raw_end = qg.parameters.get("end_date", "")
+    display_end = _adjust_end_date_for_display(raw_end)
+
+    return AnalysisReport(
+        excel_path=xlsx_path,
+        pdf_path=pdf_path,
+        chart_paths=chart_paths,
+        template_name=qg.name,
+        date_range=(raw_start, display_end),
+    )
+
+
+# ── Main entry point ──
+
+
 def run_full_pipeline(
     config_path: str,
-    template_name: str,
     date_start: str | None = None,
     date_end: str | None = None,
     auto_date: bool = False,
-) -> AnalysisReport:
+    query_group_filter: str | None = None,
+    generate_charts: bool = True,
+    generate_pdf: bool = True,
+) -> PipelineResult:
     """Execute the complete AIExport pipeline.
 
-    Stages:
-      1. Load export configuration.
-      2. Connect to SQL Server and export data → .xlsx.
-      3. Load analysis template.
-      4. Match, aggregate, and calculate percentages.
-      5. Generate Markdown + Excel reports.
+    Reads export.yaml with a queries: block of named query groups.
+    Each group has inline template config — no external YAML templates needed.
+    Templates are auto-generated from SQL query results.
 
     Args:
         config_path: Path to export.yaml.
-        template_name: Template name registered in configs/templates/.
-        date_start: Optional date range override (start).
-        date_end: Optional date range override (end).
+        date_start / date_end: Date range overrides.
+        auto_date: Use auto-calculated date range.
+        query_group_filter: Run only this query group.
+        generate_charts: Whether to generate chart PNGs.
+        generate_pdf: Whether to generate PDF reports.
 
     Returns:
-        AnalysisReport with paths to generated files.
+        PipelineResult with all generated report paths.
     """
     pipeline_start = time.time()
-    log.info("pipeline.start", config=config_path, template=template_name)
+    log.info("pipeline.start", config=config_path)
 
-    # ── Stage 1: Load config + override dates ──
+    # ── Load config ──
     config = load_export_config(config_path)
+
+    if not config.queries:
+        raise PipelineError(
+            "export.yaml 缺少 queries: 配置块。\n"
+            "请在 export.yaml 中定义 queries: 块，每个查询组需包含 detail_query + template 内联模版。"
+        )
+
+    # ── Resolve dates ──
     if auto_date:
         auto_start, auto_end = get_auto_date_range()
         config.parameters["start_date"] = auto_start
@@ -101,65 +231,61 @@ def run_full_pipeline(
     if date_end:
         config.parameters["end_date"] = date_end
 
-    # ── Stage 2: Export ──
-    log.info("pipeline.stage", stage="export")
-    try:
-        export_result = execute_export(config)
-        if export_result.error:
-            raise PipelineError(f"导出失败: {export_result.error}")
-    except Exception as e:
-        raise PipelineError(f"导出阶段失败: {e}") from e
+    # ── Filter query groups ──
+    query_groups = config.queries
+    if query_group_filter:
+        if query_group_filter not in query_groups:
+            raise PipelineError(
+                f"查询组 '{query_group_filter}' 未找到。"
+                f"可用: {', '.join(query_groups.keys())}"
+            )
+        query_groups = {query_group_filter: query_groups[query_group_filter]}
 
-    print(f"[OK] [导出] 完成: {export_result.row_count} 行, 耗时 {export_result.elapsed_seconds}s")
-    print(f"   → {export_result.file_path}")
+    reports: list[AnalysisReport] = []
+    errors: list[str] = []
+    executed = 0
+    failed = 0
+    output_dir = config.output_dir.replace("exports", "reports")
 
-    # ── Stage 3: Load template ──
-    log.info("pipeline.stage", stage="analyze")
-    registry = TemplateRegistry("configs/templates")
-    template = registry.get(template_name)
+    for name, qg in query_groups.items():
+        # Apply date overrides to each group's parameters
+        if date_start:
+            qg.parameters["start_date"] = date_start
+        if date_end:
+            qg.parameters["end_date"] = date_end
+        if auto_date:
+            qg.parameters["start_date"] = config.parameters.get("start_date", "")
+            qg.parameters["end_date"] = config.parameters.get("end_date", "")
 
-    # ── Stage 4: Load data and analyze ──
-    data = pd.read_excel(export_result.file_path)
-    analysis_result = run_analysis(template, data, config)
+        print(f"\n{'='*50}")
+        print(f"[GROUP] {name}")
+        print(f"{'='*50}")
 
-    matched_count = analysis_result.metadata.matched_rows
-    not_matched = analysis_result.metadata.unmatched_rows
-    total = analysis_result.total_row.total_sales
-    print(f"[OK] [分析] 完成: 匹配 {matched_count}/{len(template.employee_list)} 员工")
-    if not_matched > 0:
-        print(f"   [WARN] {not_matched} 名模版员工无销售记录")
-    print(f"   [DATA] 合计销售额: ¥{total:,.2f}")
-
-    # ── Stage 5: Report ──
-    log.info("pipeline.stage", stage="report")
-    md_path = generate_markdown_report(
-        analysis_result,
-        output_dir="output/reports",
-        display_name=template.display_name,
-        chain_total=analysis_result.chain_total,
-    )
-    xlsx_path = generate_excel_report(
-        analysis_result,
-        output_dir="output/reports",
-        display_name=template.display_name,
-        chain_total=analysis_result.chain_total,
-    )
-
-    print(f"[OK] [报告] 已生成:")
-    print(f"   → {md_path}")
-    print(f"   → {xlsx_path}")
+        try:
+            report = _run_single_group(
+                config, qg,
+                output_dir=output_dir,
+                generate_charts=generate_charts,
+                generate_pdf=generate_pdf,
+            )
+            reports.append(report)
+            executed += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"[{name}] {e}")
+            log.error("pipeline.group_failed", group=name, error=str(e))
+            print(f"[FAIL] [{name}] {e}")
 
     elapsed = time.time() - pipeline_start
-    log.info("pipeline.complete", elapsed=round(elapsed, 2))
-    print(f"\n[DONE] 全流程完成，耗时 {elapsed:.1f}s")
+    print(f"\n{'='*50}")
+    print(f"[DONE] 完成 {executed}/{executed + failed} 个查询组, 耗时 {elapsed:.1f}s")
+    for err in errors:
+        print(f"   [ERR] {err}")
 
-    return AnalysisReport(
-        markdown_path=md_path,
-        excel_path=xlsx_path,
-        generated_at=datetime.now(),
-        template_name=template_name,
-        date_range=(
-            config.parameters.get("start_date", ""),
-            config.parameters.get("end_date", ""),
-        ),
+    return PipelineResult(
+        reports=reports,
+        total_elapsed=round(elapsed, 2),
+        query_groups_executed=executed,
+        query_groups_failed=failed,
+        errors=errors,
     )

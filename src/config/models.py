@@ -14,7 +14,7 @@ class ExportConfig:
     password: str = ""
     port: int = 1433
 
-    # Queries
+    # Queries (optional when queries: block is present)
     detail_query: str = ""
     summary_query: str = ""
 
@@ -27,6 +27,9 @@ class ExportConfig:
 
     # Timeout in seconds
     timeout: int = 30
+
+    # Multi-query mode: named query groups
+    queries: dict = field(default_factory=dict)  # dict[str, QueryGroupConfig]
 
 
 @dataclass
@@ -62,14 +65,46 @@ class SummaryRule:
 
 
 @dataclass
-class EmployeeRow:
-    """Pre-defined employee row in a template."""
-    seq: int
-    area: str
-    store: str
+class TemplateInlineConfig:
+    """Inline template specification from export.yaml queries[].template."""
+    group_by: list[str] = field(default_factory=list)
+    match_key: MatchKey = field(default_factory=MatchKey)
+    sort_by: list[SortRule] = field(default_factory=list)
+    display_name: str = ""
+    value_field: str = ""  # numeric sales column (auto-detect if empty)
+
+
+@dataclass
+class QueryGroupConfig:
+    """A single named query group within export.yaml queries{} block.
+
+    Connection fields (server, database, etc.) are optional — when empty,
+    the root-level ExportConfig values are used as defaults.
+    """
     name: str
-    employee_id: str
-    department: str
+    detail_query: str
+    summary_query: str = ""
+    parameters: dict = field(default_factory=dict)
+    output_filename: str = ""
+    template: TemplateInlineConfig | None = None
+    # Per-group connection overrides (empty = use root-level defaults)
+    server: str = ""
+    port: int = 0
+    database: str = ""
+    username: str = ""
+    password: str = ""
+    timeout: int = 0
+
+
+@dataclass
+class EmployeeRow:
+    """Pre-defined or auto-generated employee row in a template."""
+    seq: int
+    area: str = ""
+    store: str = ""
+    name: str = ""
+    employee_id: str = ""
+    department: str = ""
 
 
 @dataclass
@@ -84,6 +119,7 @@ class AnalysisTemplate:
     match_key: MatchKey = field(default_factory=MatchKey)
     summary_rules: list[SummaryRule] = field(default_factory=list)
     employee_list: list[EmployeeRow] = field(default_factory=list)
+    value_field: str = ""  # which data column holds the sales value
 
 
 # ── Runtime result models ──
@@ -99,6 +135,8 @@ class ExportResult:
     file_path: str = ""
     elapsed_seconds: float = 0.0
     error: str | None = None
+    query_group_name: str = ""     # which query group produced this
+    summary_value: float = 0.0     # cached summary query result
 
 
 @dataclass
@@ -153,6 +191,18 @@ class AnalysisReport:
     """Generated report paths."""
     markdown_path: str = ""
     excel_path: str = ""
+    pdf_path: str = ""
+    chart_paths: list[str] = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.now)
     template_name: str = ""
     date_range: tuple = ()
+
+
+@dataclass
+class PipelineResult:
+    """Overall result of a pipeline run (may contain multiple reports)."""
+    reports: list[AnalysisReport] = field(default_factory=list)
+    total_elapsed: float = 0.0
+    query_groups_executed: int = 0
+    query_groups_failed: int = 0
+    errors: list[str] = field(default_factory=list)

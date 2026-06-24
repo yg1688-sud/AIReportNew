@@ -8,15 +8,13 @@ from typing import Any
 import yaml
 
 from src.config.models import (
-    AnalysisTemplate,
-    EmployeeRow,
     ExportConfig,
     MatchKey,
+    QueryGroupConfig,
     SortRule,
-    SummaryRule,
-    TemplateColumn,
+    TemplateInlineConfig,
 )
-from src.config.validator import validate_export_config, validate_template, ValidationError
+from src.config.validator import validate_export_config, ValidationError
 
 
 class ConfigLoadError(Exception):
@@ -48,8 +46,95 @@ def _read_yaml(file_path: str) -> dict[str, Any]:
         raise ConfigLoadError(f"YAML 解析失败 ({file_path}): {e}")
 
 
+def _parse_match_key(mk: dict) -> MatchKey:
+    """Parse a match_key block, supporting both long-form and shorthand.
+
+    Long-form (existing):
+        match_key:
+          template_fields: ["员工ID"]
+          data_fields: ["销售店员ERPID"]
+
+    Shorthand (new):
+        match_key:
+          template: ["员工ID"]
+          data: ["销售店员ERPID"]
+    """
+    template_fields = mk.get("template_fields", [])
+    data_fields = mk.get("data_fields", [])
+
+    # Support shorthand {template: [...], data: [...]}
+    if not template_fields and "template" in mk:
+        template_fields = mk["template"]
+    if not data_fields and "data" in mk:
+        data_fields = mk["data"]
+
+    return MatchKey(
+        template_fields=list(template_fields) if template_fields else [],
+        data_fields=list(data_fields) if data_fields else [],
+    )
+
+
+def _parse_inline_template(tmpl_raw: dict | None) -> TemplateInlineConfig | None:
+    """Parse an inline template block from export.yaml queries[].template."""
+    if not tmpl_raw:
+        return None
+
+    mk_raw = tmpl_raw.get("match_key", {})
+    match_key = _parse_match_key(mk_raw) if mk_raw else MatchKey()
+
+    sort_by = [
+        SortRule(field=s.get("field", ""), order=s.get("order", "asc"))
+        for s in tmpl_raw.get("sort_by", [])
+    ]
+
+    return TemplateInlineConfig(
+        group_by=tmpl_raw.get("group_by", []),
+        match_key=match_key,
+        sort_by=sort_by,
+        display_name=tmpl_raw.get("display_name", ""),
+        value_field=tmpl_raw.get("value_field", ""),
+    )
+
+
+def _parse_query_groups(raw_queries: dict, root_params: dict) -> dict[str, QueryGroupConfig]:
+    """Parse the queries{} block into QueryGroupConfig dict.
+
+    Root-level parameters are merged as defaults; group-level parameters
+    take precedence for same-key overrides.
+    """
+    result: dict[str, QueryGroupConfig] = {}
+    for name, qg_raw in raw_queries.items():
+        # Merge parameters: root defaults + group overrides
+        params = {**root_params, **qg_raw.get("parameters", {})}
+
+        template = _parse_inline_template(qg_raw.get("template"))
+
+        result[name] = QueryGroupConfig(
+            name=name,
+            detail_query=qg_raw.get("detail_query", ""),
+            summary_query=qg_raw.get("summary_query", ""),
+            parameters=params,
+            output_filename=qg_raw.get("output_filename", f"{name}.xlsx"),
+            template=template,
+            # Per-group connection overrides (empty = inherit from root)
+            server=qg_raw.get("server", ""),
+            port=qg_raw.get("port", 0),
+            database=qg_raw.get("database", ""),
+            username=qg_raw.get("username", ""),
+            password=qg_raw.get("password", ""),  # Raw — resolved at connect time
+            timeout=qg_raw.get("timeout", 0),
+        )
+    return result
+
+
 def load_export_config(file_path: str) -> ExportConfig:
-    """Load export configuration from a YAML file."""
+    """Load export configuration from a YAML file.
+
+    Supports two modes:
+      - Single-query (old): detail_query / summary_query at root level.
+      - Multi-query (new): a 'queries:' block with named query groups.
+        Root-level parameters act as defaults for all groups.
+    """
     data = _read_yaml(file_path)
 
     # FR-001: Password MUST use ${ENV_VAR} environment variable reference
@@ -60,6 +145,13 @@ def load_export_config(file_path: str) -> ExportConfig:
             "密码 MUST 使用 ${ENV_VAR} 环境变量引用，禁止明文密码"
         )
 
+    root_params: dict = data.get("parameters", {})
+
+    # Parse queries block if present (multi-query mode)
+    queries: dict[str, QueryGroupConfig] = {}
+    if "queries" in data and data["queries"]:
+        queries = _parse_query_groups(data["queries"], root_params)
+
     config = ExportConfig(
         server=data.get("server", ""),
         port=data.get("port", 1433),
@@ -68,74 +160,12 @@ def load_export_config(file_path: str) -> ExportConfig:
         password=_resolve_env_vars(raw_password),
         detail_query=data.get("detail_query", ""),
         summary_query=data.get("summary_query", ""),
-        parameters=data.get("parameters", {}),
+        parameters=root_params,
         output_dir=data.get("output_dir", "output/exports"),
         output_filename=data.get("output_filename", "export_result.xlsx"),
         timeout=data.get("timeout", 30),
+        queries=queries,
     )
 
     validate_export_config(config)
     return config
-
-
-def load_template(file_path: str) -> AnalysisTemplate:
-    """Load an analysis template from a YAML file."""
-    data = _read_yaml(file_path)
-
-    columns = [
-        TemplateColumn(
-            title=c.get("title", ""),
-            source_field=c.get("source_field", ""),
-            format=c.get("format", "text"),
-            width=c.get("width", 15),
-        )
-        for c in data.get("columns", [])
-    ]
-
-    sort_by = [
-        SortRule(field=s.get("field", ""), order=s.get("order", "asc"))
-        for s in data.get("sort_by", [])
-    ]
-
-    mk = data.get("match_key", {})
-    match_key = MatchKey(
-        template_fields=mk.get("template_fields", []),
-        data_fields=mk.get("data_fields", []),
-    )
-
-    summary_rules = [
-        SummaryRule(
-            type=r.get("type", "sum"),
-            source_field=r.get("source_field", ""),
-            target_field=r.get("target_field", ""),
-            base_field=r.get("base_field", ""),
-        )
-        for r in data.get("summary_rules", [])
-    ]
-
-    employees = [
-        EmployeeRow(
-            seq=e.get("seq", i + 1),
-            area=e.get("area", ""),
-            store=e.get("store", ""),
-            name=e.get("name", ""),
-            employee_id=str(e.get("employee_id", "")),
-            department=e.get("department", ""),
-        )
-        for i, e in enumerate(data.get("employee_list", []))
-    ]
-
-    template = AnalysisTemplate(
-        name=data.get("name", ""),
-        display_name=data.get("display_name", ""),
-        description=data.get("description", ""),
-        columns=columns,
-        group_by=data.get("group_by", []),
-        sort_by=sort_by,
-        match_key=match_key,
-        summary_rules=summary_rules,
-        employee_list=employees,
-    )
-
-    validate_template(template)
-    return template
