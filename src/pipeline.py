@@ -1,5 +1,6 @@
 """Full pipeline orchestration: export → analyze → report."""
 
+import os
 import time
 import structlog
 from datetime import datetime, date, timedelta
@@ -95,6 +96,10 @@ def _run_single_group(
     print(f"[OK] [{qg.name}] 导出: {export_result.row_count} 行, 耗时 {export_result.elapsed_seconds}s")
     print(f"   → {export_result.file_path}")
 
+    # ── Create per-file subdirectory (matches analyze-file naming) ──
+    export_stem = os.path.splitext(os.path.basename(export_result.file_path))[0]
+    group_output_dir = os.path.join(output_dir, export_stem)
+
     # ── Stage 2: Load data ──
     data = pd.read_excel(export_result.file_path)
     if data.empty:
@@ -132,7 +137,7 @@ def _run_single_group(
     if generate_charts:
         try:
             from src.chart.generator import generate_charts_for_analysis
-            chart_paths = generate_charts_for_analysis(analysis_result, output_dir=output_dir)
+            chart_paths = generate_charts_for_analysis(analysis_result, output_dir=group_output_dir)
             if chart_paths:
                 print(f"[OK] [{qg.name}] 图表: {len(chart_paths)} 张")
         except Exception as e:
@@ -145,7 +150,7 @@ def _run_single_group(
 
     xlsx_path = generate_excel_report(
         analysis_result,
-        output_dir=output_dir,
+        output_dir=group_output_dir,
         display_name=display_name,
         chain_total=chain_total,
     )
@@ -156,7 +161,7 @@ def _run_single_group(
             from src.report.pdf import generate_pdf_report
             pdf_path = generate_pdf_report(
                 analysis_result,
-                output_dir=output_dir,
+                output_dir=group_output_dir,
                 display_name=display_name,
                 chain_total=chain_total,
                 chart_paths=chart_paths,
@@ -275,9 +280,43 @@ def run_full_pipeline(
             log.error("pipeline.group_failed", group=name, error=str(e))
             print(f"[FAIL] [{name}] {e}")
 
+    # ── File analysis phase: analyze all exported files ──
+    exports_dir = config.output_dir
+    import glob as _glob
+    file_results: list = []
+    if os.path.isdir(exports_dir):
+        supported_exts = ["*.xlsx", "*.xls", "*.csv"]
+        exported_files: list[str] = []
+        for ext in supported_exts:
+            exported_files.extend(_glob.glob(os.path.join(exports_dir, ext)))
+        exported_files.sort()
+
+        if exported_files:
+            print(f"\n{'='*50}")
+            print(f"[PHASE] 文件分析 — {len(exported_files)} 个文件")
+            print(f"{'='*50}")
+
+            from src.pipeline_file import run_file_analysis
+            for fpath in exported_files:
+                fname = os.path.basename(fpath)
+                print(f"\n[FILE] {fname}")
+                try:
+                    fr = run_file_analysis(
+                        file_path=fpath,
+                        output_dir=output_dir,
+                        generate_charts=generate_charts,
+                        generate_pdf=generate_pdf,
+                    )
+                    file_results.append(fr)
+                    if fr.error:
+                        print(f"   [WARN] {fr.error}")
+                except Exception as e:
+                    log.error("pipeline.file_analysis_failed", file=fpath, error=str(e))
+                    print(f"   [ERR] {e}")
+
     elapsed = time.time() - pipeline_start
     print(f"\n{'='*50}")
-    print(f"[DONE] 完成 {executed}/{executed + failed} 个查询组, 耗时 {elapsed:.1f}s")
+    print(f"[DONE] 完成 {executed}/{executed + failed} 个查询组 + {len(file_results)} 个文件分析, 耗时 {elapsed:.1f}s")
     for err in errors:
         print(f"   [ERR] {err}")
 

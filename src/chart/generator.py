@@ -343,3 +343,111 @@ def generate_charts_for_analysis(
         chart_paths.append(funnel_path)
 
     return chart_paths
+
+
+def generate_charts_for_file(
+    data: pd.DataFrame,
+    value_col: str,
+    name_col: str,
+    group_col: str | None,
+    output_dir: str = "output/reports",
+    file_label: str = "file_analysis",
+    top_n: int = 10,
+    font_path: str | None = None,
+) -> list[str]:
+    """Generate all relevant charts from a raw DataFrame (no AnalysisResult needed).
+
+    Always generates:
+      - Bar chart: top-N by value_col, labeled by name_col
+      - Funnel chart: top-N funnel (if >= 3 rows with positive values)
+
+    Conditionally generates:
+      - Pie chart: if group_col is provided, aggregate by group_col.
+
+    Args:
+        data: DataFrame sorted by value_col descending.
+        value_col: Numeric column name for values.
+        name_col: Column name for labels.
+        group_col: Optional categorical column for pie chart grouping.
+        output_dir: Directory for chart PNG files.
+        file_label: Label used in chart file names.
+        top_n: Top N items for bar and funnel charts.
+        font_path: Optional Chinese font path.
+
+    Returns:
+        List of generated chart PNG file paths.
+    """
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    chart_paths: list[str] = []
+
+    if data.empty or value_col not in data.columns:
+        log.info("chart.file_no_data", file=file_label)
+        return chart_paths
+
+    # Filter to rows with positive values for charts
+    chart_data = data[data[value_col] > 0].copy()
+    if chart_data.empty:
+        log.info("chart.file_no_positive_values", file=file_label)
+        return chart_paths
+
+    # ── Bar chart ──
+    bar_path = str(Path(output_dir) / f"chart_bar_{file_label}_{ts}.png")
+    generate_bar_chart(
+        data=chart_data,
+        x_col=name_col,
+        y_col=value_col,
+        title=f"{file_label} — 排行 Top {top_n}",
+        output_path=bar_path,
+        top_n=top_n,
+        font_path=font_path,
+    )
+    chart_paths.append(bar_path)
+
+    # ── Pie chart (aggregate by group_col if provided) ──
+    if group_col and group_col in data.columns:
+        grouped = chart_data.groupby(group_col)[value_col].sum().reset_index()
+        grouped = grouped[grouped[value_col] > 0]
+        if len(grouped) >= 2:
+            pie_path = str(Path(output_dir) / f"chart_pie_{file_label}_{ts}.png")
+            generate_pie_chart(
+                data=grouped,
+                label_col=group_col,
+                value_col=value_col,
+                title=f"{file_label} — {group_col}分布",
+                output_path=pie_path,
+                font_path=font_path,
+            )
+            chart_paths.append(pie_path)
+        else:
+            log.info("chart.file_pie_skipped", group_col=group_col, groups=len(grouped))
+    else:
+        # Fallback: use name_col for pie chart if reasonable number of items
+        if len(chart_data) >= 2 and len(chart_data) <= 30:
+            pie_path = str(Path(output_dir) / f"chart_pie_{file_label}_{ts}.png")
+            generate_pie_chart(
+                data=chart_data,
+                label_col=name_col,
+                value_col=value_col,
+                title=f"{file_label} — 分布",
+                output_path=pie_path,
+                font_path=font_path,
+            )
+            chart_paths.append(pie_path)
+
+    # ── Funnel chart ──
+    if len(chart_data) >= 3:
+        funnel_path = str(Path(output_dir) / f"chart_funnel_{file_label}_{ts}.png")
+        generate_funnel_chart(
+            data=chart_data,
+            label_col=name_col,
+            value_col=value_col,
+            title=f"{file_label} — 漏斗 Top {top_n}",
+            output_path=funnel_path,
+            top_n=top_n,
+            font_path=font_path,
+        )
+        chart_paths.append(funnel_path)
+
+    return chart_paths

@@ -108,3 +108,72 @@ queries:
         assert result.exit_code == 0
         assert "group-a" in result.output
         assert "group-b" in result.output
+
+
+class TestAnalyzeFile:
+    """TC-CLI-006: analyze-file command."""
+
+    def test_analyze_file_basic(self, runner, sample_xlsx_path, temp_dir):
+        """Basic invocation succeeds with exit code 0."""
+        result = runner.invoke(cli, [
+            "analyze-file", sample_xlsx_path,
+            "--output-dir", str(temp_dir),
+        ])
+        assert result.exit_code == 0, result.output
+        assert "加载" in result.output
+        assert "Excel 报告" in result.output
+
+    def test_analyze_file_no_pdf(self, runner, sample_xlsx_path, temp_dir):
+        """--no-pdf flag produces only Excel."""
+        result = runner.invoke(cli, [
+            "analyze-file", sample_xlsx_path,
+            "--output-dir", str(temp_dir),
+            "--no-pdf",
+        ])
+        assert result.exit_code == 0
+        assert "Excel 报告" in result.output
+
+    def test_analyze_file_no_charts(self, runner, sample_xlsx_path, temp_dir):
+        """--no-charts flag produces no chart PNGs."""
+        result = runner.invoke(cli, [
+            "analyze-file", sample_xlsx_path,
+            "--output-dir", str(temp_dir),
+            "--no-charts",
+        ])
+        assert result.exit_code == 0
+        assert "0图" in result.output
+
+    def test_analyze_file_custom_columns(self, runner, sample_xlsx_path, temp_dir):
+        """Custom --value-col, --name-col, --group-col used."""
+        result = runner.invoke(cli, [
+            "analyze-file", sample_xlsx_path,
+            "--output-dir", str(temp_dir),
+            "--value-col", "销售数量",
+            "--name-col", "日期",
+            "--group-col", "备注",
+        ])
+        assert result.exit_code == 0
+        assert '数值列="销售数量"' in result.output
+        assert '名称列="日期"' in result.output
+        assert '分组列="备注"' in result.output
+
+    def test_analyze_file_nonexistent_path(self, runner):
+        """Non-existent path fails before command executes (Click validation)."""
+        result = runner.invoke(cli, ["analyze-file", "nonexistent_file.xlsx"])
+        assert result.exit_code != 0
+
+    def test_analyze_file_in_help(self, runner):
+        """'analyze-file' appears in CLI help output."""
+        result = runner.invoke(cli, ["--help"])
+        assert result.exit_code == 0
+        assert "analyze-file" in result.output
+
+    def test_analyze_file_csv(self, runner, sample_csv_path, temp_dir):
+        """CSV input works via CLI."""
+        result = runner.invoke(cli, [
+            "analyze-file", sample_csv_path,
+            "--output-dir", str(temp_dir),
+            "--no-pdf",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "加载" in result.output

@@ -22,6 +22,10 @@ from src.config.models import (
 _MONEY_KEYWORDS = ["金额", "价格", "price", "amount", "pay", "sales", "cost"]
 _PERCENT_KEYWORDS = ["占比", "百分比", "percent", "rate", "ratio"]
 _NUMBER_KEYWORDS = ["数量", "num", "count", "qty"]
+_GROUP_KEYWORDS = [
+    "门店", "片区", "区域", "部门", "类别", "类型", "分类",
+    "group", "category", "type",
+]
 
 
 def _detect_format(col_name: str) -> str:
@@ -96,6 +100,40 @@ def _infer_name_column(data: pd.DataFrame) -> str:
         if data[col].dtype == object and "id" not in str(col).lower():
             return str(col)
     return ""
+
+
+def auto_detect_group_column(data: pd.DataFrame) -> str | None:
+    """Find the best categorical column for grouping (for pie charts).
+
+    Priority:
+      1. Column name contains a known group keyword (门店 > 片区 > ...)
+      2. String/object column with 2-30 unique values (suitable for pie slices)
+      3. None — no suitable grouping column found
+
+    Rules for fallback detection:
+      - Must be string/object type
+      - Must have 2 to 30 unique values
+      - Among candidates, pick the one with fewest unique values (best for visual grouping)
+
+    Returns:
+        Column name string, or None.
+    """
+    # Step 1: Keyword priority (in listed order)
+    for kw in _GROUP_KEYWORDS:
+        for col in data.columns:
+            if kw in str(col) and data[col].dtype == object:
+                return str(col)
+
+    # Step 2: Best string column by uniqueness (2-30 unique values)
+    string_cols = [c for c in data.columns if data[c].dtype == object]
+    best: str | None = None
+    best_unique: float = float("inf")
+    for col in string_cols:
+        n_unique = data[col].nunique()
+        if 2 <= n_unique <= 30 and n_unique < best_unique:
+            best_unique = n_unique
+            best = str(col)
+    return best
 
 
 def auto_generate_template(

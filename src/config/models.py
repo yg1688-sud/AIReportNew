@@ -206,3 +206,24 @@ class PipelineResult:
     query_groups_executed: int = 0
     query_groups_failed: int = 0
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class FileAnalysisResult:
+    """Result of a file analysis run (no template, no employee matching).
+
+    Used by the analyze-file command for arbitrary .xlsx/.xls/.csv files.
+    """
+    file_path: str = ""
+    file_label: str = ""        # stem of the filename
+    file_type: str = ""         # xlsx, xls, or csv
+    excel_path: str = ""
+    pdf_path: str = ""
+    chart_paths: list[str] = field(default_factory=list)
+    row_count: int = 0
+    col_count: int = 0
+    value_col: str = ""
+    name_col: str = ""
+    group_col: str = ""
+    total_value: float = 0.0
+    error: str = ""

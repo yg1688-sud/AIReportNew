@@ -226,3 +226,43 @@ def generate_mock_order_data(employee_count=10, seed=42):
                 "销售店员姓名": f"测试员工{i}",
             })
     return rows
+
+
+# ── File analysis fixtures ──
+
+
+@pytest.fixture
+def sample_file_df() -> pd.DataFrame:
+    """DataFrame simulating an arbitrary exported file with mixed columns."""
+    return pd.DataFrame({
+        "门店": ["保康", "北碚6店", "渝中1店", "保康", "北碚6店"],
+        "姓名": ["张三", "李四", "王五", "赵六", "钱七"],
+        "销售金额": [5000.00, 3000.00, 2000.00, 1500.00, 800.00],
+        "销售数量": [10, 6, 4, 3, 2],
+        "日期": ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05"],
+        "备注": ["", "", "促销", "", ""],
+    })
+
+
+@pytest.fixture
+def sample_xlsx_path(sample_file_df, temp_dir) -> str:
+    """Write sample_file_df to a temporary .xlsx and return the path."""
+    path = str(temp_dir / "test_data.xlsx")
+    sample_file_df.to_excel(path, index=False)
+    return path
+
+
+@pytest.fixture
+def sample_csv_path(sample_file_df, temp_dir) -> str:
+    """Write sample_file_df to a temporary .csv (UTF-8) and return the path."""
+    path = str(temp_dir / "test_data.csv")
+    sample_file_df.to_csv(path, index=False, encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def sample_csv_gbk_path(sample_file_df, temp_dir) -> str:
+    """Write sample_file_df to a temporary .csv (GBK) and return the path."""
+    path = str(temp_dir / "test_data_gbk.csv")
+    sample_file_df.to_csv(path, index=False, encoding="gbk")
+    return path

@@ -1,5 +1,6 @@
 """AIExport CLI — command-line interface for export, analysis, and reporting."""
 
+import os
 import sys
 
 import click
@@ -174,6 +175,83 @@ def validate(config):
             click.echo("[WARN] 未找到 queries: 配置块")
     except (ValidationError, FileNotFoundError) as e:
         click.echo(f"[ERROR] {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option("--output-dir", "-o", default="output/reports",
+              help="报告输出目录")
+@click.option("--value-col", default="",
+              help="数值列名称（留空则自动检测）")
+@click.option("--name-col", default="",
+              help="名称/标签列名称（留空则自动检测）")
+@click.option("--group-col", default="",
+              help="分组列名称（留空则自动检测，用于饼图）")
+@click.option("--no-charts", is_flag=True, default=False,
+              help="跳过图表生成")
+@click.option("--no-pdf", is_flag=True, default=False,
+              help="跳过 PDF 报告（仅生成 Excel）")
+@click.option("--top-n", type=int, default=10,
+              help="排行榜 Top N 数量（默认 10）")
+def analyze_file(input_path, output_dir, value_col, name_col, group_col,
+                 no_charts, no_pdf, top_n):
+    """分析任意 .xlsx / .xls / .csv 文件并生成报告。
+
+    INPUT_PATH: .xlsx / .xls / .csv 文件路径，或包含这些文件的目录。
+
+    \b
+    系统会自动检测：
+      - 数值列（用于分析和排序）
+      - 名称列（用于图表标签）
+      - 分组列（用于饼图分类）
+
+    \b
+    示例：
+      python -m src.cli analyze-file output/exports/data.xlsx
+      python -m src.cli analyze-file output/exports/data.csv
+      python -m src.cli analyze-file output/exports/
+      python -m src.cli analyze-file data.xlsx --group-col "区域"
+      python -m src.cli analyze-file data.csv --no-pdf --no-charts
+      python -m src.cli analyze-file data.xlsx --top-n 15
+    """
+    import time
+    from src.pipeline_file import run_file_analysis_batch
+
+    start = time.time()
+
+    try:
+        results = run_file_analysis_batch(
+            input_path=input_path,
+            output_dir=output_dir,
+            value_col=value_col,
+            name_col=name_col,
+            group_col=group_col,
+            generate_charts=not no_charts,
+            generate_pdf=not no_pdf,
+            top_n=top_n,
+        )
+    except ValueError as e:
+        click.echo(f"[ERROR] {e}", err=True)
+        sys.exit(1)
+
+    elapsed = time.time() - start
+
+    # ── Print summary ──
+    errors = [r for r in results if r.error]
+    success = [r for r in results if not r.error]
+
+    print(f"\n{'=' * 50}")
+    print(f"[DONE] 完成 {len(success)}/{len(results)} 个文件, 耗时 {elapsed:.1f}s")
+
+    for r in success:
+        print(f"   [OK] {r.file_label}.{r.file_type}: "
+              f"{r.row_count}行 → Excel + {len(r.chart_paths)}图"
+              f"{' + PDF' if r.pdf_path else ''}")
+    for r in errors:
+        print(f"   [ERR] {os.path.basename(r.file_path)}: {r.error}")
+
+    if errors:
         sys.exit(1)
 
 
