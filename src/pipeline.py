@@ -148,7 +148,6 @@ def _run_single_group(
         output_dir=output_dir,
         display_name=display_name,
         chain_total=chain_total,
-        chart_paths=chart_paths,
     )
 
     pdf_path = ""

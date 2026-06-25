@@ -87,21 +87,24 @@ def generate_bar_chart(
     """Generate a horizontal bar chart PNG for top-N items."""
     _setup_matplotlib_chinese(font_path)
 
-    sorted_data = data.sort_values(by=y_col, ascending=False).head(top_n).copy()
-    others_sum = data[y_col].sum() - sorted_data[y_col].sum()
+    # Take top_n largest, then sort ascending for barh (bottom=small, top=large)
+    top_data = data.sort_values(by=y_col, ascending=False).head(top_n).copy()
+    display_data = top_data.sort_values(by=y_col, ascending=True)
+    others_sum = data[y_col].sum() - top_data[y_col].sum()
 
     if others_sum > 0:
-        sorted_data = pd.concat([
-            sorted_data,
-            pd.DataFrame({x_col: ["其他"], y_col: [others_sum]}),
-        ], ignore_index=True)
+        others_row = pd.DataFrame({x_col: ["其他"], y_col: [others_sum]})
+        display_data = pd.concat([others_row, display_data], ignore_index=True)
+
+    sorted_data = display_data
 
     fig, ax = plt.subplots(figsize=figsize)
     bars = ax.barh(sorted_data[x_col], sorted_data[y_col])
 
+    max_w = max(sorted_data[y_col]) if len(sorted_data) > 0 else 1
     for bar, val in zip(bars, sorted_data[y_col]):
         ax.text(
-            bar.get_width() + max(sorted_data[y_col]) * 0.01,
+            bar.get_width() + max_w * 0.01,
             bar.get_y() + bar.get_height() / 2,
             f"￥{val:,.2f}",
             va="center",
@@ -111,7 +114,6 @@ def generate_bar_chart(
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel(x_label or y_col)
     ax.set_ylabel(y_label or x_col)
-    ax.invert_yaxis()
     fig.tight_layout()
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -195,10 +197,10 @@ def generate_funnel_chart(
     title: str,
     output_path: str,
     top_n: int = 10,
-    figsize: tuple = (10, 14),
+    figsize: tuple = (8, 6),
     font_path: str | None = None,
 ) -> str:
-    """Generate a funnel chart PNG showing top-N distribution."""
+    """Generate a compact funnel chart showing top-N distribution."""
     _setup_matplotlib_chinese(font_path)
 
     sorted_data = data.sort_values(by=value_col, ascending=False).head(top_n).copy()
@@ -210,40 +212,41 @@ def generate_funnel_chart(
 
     labels = list(sorted_data[label_col])
     values = list(sorted_data[value_col])
-
-    # Normalize widths for funnel effect
     max_val = max(values) if values else 1.0
-    widths = [v / max_val for v in values]
 
-    colors = plt.cm.Blues([0.3 + 0.7 * (i / max(1, len(values) - 1)) for i in range(len(values))])
-
-    bar_height = 0.6
-    y_positions = list(range(len(values)))
+    # Color gradient — dark at top (largest), light at bottom
+    n = len(values)
+    colors = [plt.cm.Blues(0.35 + 0.65 * (i / max(1, n - 1))) for i in range(n)]
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    for i, (label, val, w) in enumerate(zip(labels, values, widths)):
-        left = (1.0 - w) / 2
-        ax.barh(y_positions[i], w, height=bar_height, left=left,
-                color=colors[i], edgecolor="white", linewidth=1.5)
+    bar_h = 0.85  # bar height — tighter
+    y_positions = list(reversed(range(n)))  # largest at top
 
-        # Label on the left
-        ax.text(left - 0.02, y_positions[i], label,
+    for i, (label, val) in enumerate(zip(labels, values)):
+        w = val / max_val
+        left = (1.0 - w) / 2
+
+        ax.barh(y_positions[i], w, height=bar_h, left=left,
+                color=colors[n - 1 - i],  # dark for largest (top)
+                edgecolor="#ffffff", linewidth=0.8)
+
+        # Name label — left side
+        ax.text(left - 0.01, y_positions[i], label,
                 ha="right", va="center", fontsize=9)
-        # Value — inside bar if wide, else right
-        if w > 0.35:
-            ax.text(left + w / 2, y_positions[i], f"￥{val:,.0f}",
-                    ha="center", va="center", fontsize=8, color="white", fontweight="bold")
-        else:
-            ax.text(left + w + 0.01, y_positions[i], f"￥{val:,.0f}",
-                    ha="left", va="center", fontsize=8, color="#333333")
+        # Value label — right side
+        ax.text(left + w + 0.01, y_positions[i], f"￥{val:,.0f}",
+                ha="left", va="center", fontsize=8, color="#555555")
 
     ax.set_yticks([])
-    ax.set_xlim(0, 1.30)
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=15)
+    ax.set_xlim(0, 1.20)
+    ax.set_ylim(-0.5, n - 0.5)
+    ax.set_title(title, fontsize=13, fontweight="bold", pad=10)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.tick_params(bottom=False, labelbottom=False)
     fig.tight_layout()
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
