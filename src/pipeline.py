@@ -110,7 +110,7 @@ def _run_single_group(
     if not qg.template:
         # Export-only mode — no analysis or report
         print(f"[OK] [{qg.name}] 纯导出模式（无 template），跳过分析和报告")
-        return AnalysisReport(template_name=qg.name)
+        return AnalysisReport(template_name=qg.name, excel_path=export_result.file_path)
 
     from src.template.auto import auto_generate_template
     template = auto_generate_template(data, qg.name, qg.template)
@@ -250,6 +250,7 @@ def run_full_pipeline(
     executed = 0
     failed = 0
     output_dir = config.output_dir.replace("exports", "reports")
+    export_only_files: set[str] = set()  # files from query groups without template
 
     for name, qg in query_groups.items():
         # Apply date overrides to each group's parameters
@@ -274,6 +275,9 @@ def run_full_pipeline(
             )
             reports.append(report)
             executed += 1
+            # Track export-only files to skip in file analysis phase
+            if not qg.template and report.excel_path:
+                export_only_files.add(os.path.abspath(report.excel_path))
         except Exception as e:
             failed += 1
             errors.append(f"[{name}] {e}")
@@ -290,6 +294,17 @@ def run_full_pipeline(
         for ext in supported_exts:
             exported_files.extend(_glob.glob(os.path.join(exports_dir, ext)))
         exported_files.sort()
+
+        # Skip files from export-only query groups (e.g. staff roster)
+        if export_only_files:
+            before = len(exported_files)
+            exported_files = [
+                f for f in exported_files
+                if os.path.abspath(f) not in export_only_files
+            ]
+            skipped = before - len(exported_files)
+            if skipped > 0:
+                print(f"\n[INFO] 跳过 {skipped} 个纯导出文件（无需分析）")
 
         if exported_files:
             print(f"\n{'='*50}")

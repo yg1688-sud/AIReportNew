@@ -113,11 +113,6 @@ def generate_bar_chart(
     # Take top_n largest, then sort ascending for barh (bottom=small, top=large)
     top_data = data.sort_values(by=y_col, ascending=False).head(top_n).copy()
     display_data = top_data.sort_values(by=y_col, ascending=True)
-    others_sum = data[y_col].sum() - top_data[y_col].sum()
-
-    if others_sum > 0:
-        others_row = pd.DataFrame({x_col: ["其他"], y_col: [others_sum]})
-        display_data = pd.concat([others_row, display_data], ignore_index=True)
 
     sorted_data = display_data
 
