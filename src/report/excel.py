@@ -87,19 +87,21 @@ def generate_excel_report(
     ws.row_dimensions[1].height = 30
 
     # ── Summary rows ──
-    right_align = Alignment(horizontal="center")
+    center_align = Alignment(horizontal="center", vertical="center")
     actual_chain = chain_total if chain_total else result.chain_total
     ws.cell(row=3, column=1, value="连锁月度总销售额：").font = Font(bold=True)
     ws.cell(row=3, column=3, value=actual_chain).number_format = MONEY_FORMAT
+    ws.cell(row=3, column=3).alignment = center_align
     ws.cell(row=4, column=1, value="模版员工合计：").font = Font(bold=True)
     ws.cell(row=4, column=3, value=result.total_row.total_sales).number_format = MONEY_FORMAT
+    ws.cell(row=4, column=3).alignment = center_align
     pct = (result.total_row.total_sales / actual_chain * 100) if actual_chain > 0 else 0.0
     ws.cell(row=5, column=1, value="占比：").font = Font(bold=True)
-    ws.cell(row=5, column=3, value=f"{pct:.2f}%").alignment = right_align
+    ws.cell(row=5, column=3, value=f"{pct:.2f}%").alignment = center_align
     ws.cell(row=6, column=1, value="有销售记录员工数：").font = Font(bold=True)
-    ws.cell(row=6, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}").alignment = right_align
+    ws.cell(row=6, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}").alignment = center_align
     ws.cell(row=7, column=1, value="覆盖门店数：").font = Font(bold=True)
-    ws.cell(row=7, column=3, value=result.total_row.total_stores).alignment = right_align
+    ws.cell(row=7, column=3, value=result.total_row.total_stores).alignment = center_align
 
     # ── Table header (row 7) ──
     headers = ["序号", "部门", "门店", "姓名", "员工ID", "销售金额", "占比"]
