@@ -333,35 +333,17 @@ def generate_charts_for_analysis(
     )
     chart_paths.append(bar_path)
 
-    # ── Pie chart (area first, store fallback) ──
-    area_counts = df.groupby("area")["sales_amount"].sum().reset_index()
-    area_counts = area_counts[area_counts["sales_amount"] > 0]
-
-    if len(area_counts) > 1:
-        pie_path = str(Path(output_dir) / f"chart_pie_{result.template_name}_{ts}.png")
-        generate_pie_chart(
-            data=area_counts,
-            label_col="area",
-            value_col="sales_amount",
-            title=f"{result.template_name} — 片区销售分布",
-            output_path=pie_path,
-            font_path=font_path,
-        )
-        chart_paths.append(pie_path)
-    else:
-        store_counts = df.groupby("store")["sales_amount"].sum().reset_index()
-        store_counts = store_counts[store_counts["sales_amount"] > 0]
-        if len(store_counts) > 1:
-            pie_path = str(Path(output_dir) / f"chart_pie_{result.template_name}_{ts}.png")
-            generate_pie_chart(
-                data=store_counts,
-                label_col="store",
-                value_col="sales_amount",
-                title=f"{result.template_name} — 门店销售分布",
-                output_path=pie_path,
-                font_path=font_path,
-            )
-            chart_paths.append(pie_path)
+    # ── Pie chart (employee sales distribution) ──
+    pie_path = str(Path(output_dir) / f"chart_pie_{result.template_name}_{ts}.png")
+    generate_pie_chart(
+        data=df,
+        label_col="name",
+        value_col="sales_amount",
+        title=f"{result.template_name} — 员工销售分布",
+        output_path=pie_path,
+        font_path=font_path,
+    )
+    chart_paths.append(pie_path)
 
     # ── Funnel chart ──
     if len(df) >= 3:
