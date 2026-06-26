@@ -189,7 +189,11 @@ def auto_generate_template(
             # store: from first group_by field (e.g. "销售门店")
             store = str(first[gb_fields[0]]) if len(gb_fields) > 0 and gb_fields[0] in data.columns else ""
             area = store  # area kept for backward compat (not shown in report)
-            name = str(first[name_col]) if name_col and name_col in data.columns else uid
+            # name: auto-detect or fallback to store
+            if name_col and name_col in data.columns and name_col != data_key:
+                name = str(first[name_col])
+            else:
+                name = store if store else uid
             # department: auto-detect from data columns
             dept = ""
             for dept_col in ["部门", "department", "DepartmentStr", "科室"]:
@@ -202,7 +206,7 @@ def auto_generate_template(
                 area=area,
                 store=store,
                 name=name,
-                employee_id=uid,
+                employee_id=uid,  # must match data_key_field for matcher
                 department=dept,
             ))
 
