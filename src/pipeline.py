@@ -107,9 +107,11 @@ def _run_single_group(
         return AnalysisReport(template_name=qg.name)
 
     # ── Stage 3: Auto-generate template from data ──
+    if not qg.analyze:
+        print(f"[OK] [{qg.name}] analyze=false，跳过分析和报告")
+        return AnalysisReport(template_name=qg.name, markdown_path=export_result.file_path)
     if not qg.template:
-        # Export-only mode — no analysis or report
-        print(f"[OK] [{qg.name}] 纯导出模式（无 template），跳过分析和报告")
+        print(f"[OK] [{qg.name}] 无 template 配置，跳过分析和报告")
         return AnalysisReport(template_name=qg.name, markdown_path=export_result.file_path)
 
     from src.template.auto import auto_generate_template

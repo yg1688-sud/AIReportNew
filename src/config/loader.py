@@ -116,6 +116,7 @@ def _parse_query_groups(raw_queries: dict, root_params: dict) -> dict[str, Query
             parameters=params,
             output_filename=qg_raw.get("output_filename", f"{name}.xlsx"),
             template=template,
+            analyze=qg_raw.get("analyze", True),
             # Per-group connection overrides (empty = inherit from root)
             server=qg_raw.get("server", ""),
             port=qg_raw.get("port", 0),

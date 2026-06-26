@@ -162,4 +162,4 @@ queries:
       end_date: "2026-06-16"
 
     output_filename: "staff_list.xlsx"
-    # 无 template → 纯导出模式，仅导出 .xlsx，不生成分析报告
+    analyze: false  # 花名册，无需分析报告

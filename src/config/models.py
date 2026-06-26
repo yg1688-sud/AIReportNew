@@ -87,6 +87,7 @@ class QueryGroupConfig:
     parameters: dict = field(default_factory=dict)
     output_filename: str = ""
     template: TemplateInlineConfig | None = None
+    analyze: bool = True  # 是否生成分析报告（默认是，花名册等设为 false）
     # Per-group connection overrides (empty = use root-level defaults)
     server: str = ""
     port: int = 0
