@@ -395,7 +395,20 @@ def generate_pdf_report(
         for cp in chart_paths:
             if os.path.isfile(cp):
                 try:
-                    img = Image(cp, width=240 * mm, height=120 * mm)
+                    # Read actual image dimensions to preserve aspect ratio
+                    from PIL import Image as PILImage
+                    with PILImage.open(cp) as pil_img:
+                        img_w, img_h = pil_img.size
+                    # Fit within page: max 240mm wide × 160mm tall
+                    max_w_mm = 240 * mm
+                    max_h_mm = 160 * mm
+                    aspect = img_h / img_w if img_w > 0 else 0.5
+                    draw_w = max_w_mm
+                    draw_h = draw_w * aspect
+                    if draw_h > max_h_mm:
+                        draw_h = max_h_mm
+                        draw_w = draw_h / aspect
+                    img = Image(cp, width=draw_w, height=draw_h)
                     img.hAlign = "CENTER"
                     story.append(img)
                     story.append(Spacer(1, 4 * mm))

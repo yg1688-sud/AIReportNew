@@ -137,15 +137,10 @@ def generate_bar_chart(
     # Smaller font for Y-axis labels if they're long
     y_fontsize = 7 if max_label > 12 else (8 if max_label > 8 else 10)
 
+    # Use bar_label for automatic label placement (avoids overlap)
     max_w = max(sorted_data[y_col]) if len(sorted_data) > 0 else 1
-    for bar, val in zip(bars, sorted_data[y_col]):
-        ax.text(
-            bar.get_width() + max_w * 0.01,
-            bar.get_y() + bar.get_height() / 2,
-            f"￥{val:,.2f}",
-            va="center",
-            fontsize=9,
-        )
+    labels = [f"￥{v:,.2f}" for v in sorted_data[y_col]]
+    ax.bar_label(bars, labels=labels, padding=3, fontsize=8, fmt="%s")
 
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel(x_label or y_col)
