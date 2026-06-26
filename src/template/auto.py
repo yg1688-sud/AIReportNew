@@ -186,10 +186,16 @@ def auto_generate_template(
                 continue
 
             first = rows.iloc[0]
-            area = str(first[gb_fields[0]]) if len(gb_fields) > 0 and gb_fields[0] in data.columns else ""
-            store = str(first[gb_fields[1]]) if len(gb_fields) > 1 and gb_fields[1] in data.columns else ""
+            # store: from first group_by field (e.g. "销售门店")
+            store = str(first[gb_fields[0]]) if len(gb_fields) > 0 and gb_fields[0] in data.columns else ""
+            area = store  # area kept for backward compat (not shown in report)
             name = str(first[name_col]) if name_col and name_col in data.columns else uid
-            dept = str(first[gb_fields[2]]) if len(gb_fields) > 2 and gb_fields[2] in data.columns else ""
+            # department: auto-detect from data columns
+            dept = ""
+            for dept_col in ["部门", "department", "DepartmentStr", "科室"]:
+                if dept_col in data.columns:
+                    dept = str(first[dept_col])
+                    break
 
             employee_list.append(EmployeeRow(
                 seq=seq,
