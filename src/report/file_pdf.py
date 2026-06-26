@@ -337,8 +337,8 @@ def generate_file_pdf_report(
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2B579A")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, -1), font_regular),
-            ("FONTSIZE", (0, 0), (-1, 0), 6),
-            ("FONTSIZE", (0, 1), (-1, -1), 6),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#DDDDDD")),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("TOPPADDING", (0, 0), (-1, -1), 2),
@@ -387,9 +387,10 @@ def generate_file_pdf_report(
                     from PIL import Image as PILImage
                     with PILImage.open(cp) as pil_img:
                         img_w, img_h = pil_img.size
-                    # Fit within: 240mm wide × 160mm tall
-                    max_w_mm = 240 * mm
-                    max_h_mm = 160 * mm
+                    # Fit within page: use 90% of available width, max 170mm tall
+                    page_w = (page_size[0] if page_size else A4[0]) - 24 * mm
+                    max_w_mm = page_w * 0.9
+                    max_h_mm = 170 * mm
                     aspect = img_h / img_w if img_w > 0 else 0.5
                     draw_w = max_w_mm
                     draw_h = draw_w * aspect
