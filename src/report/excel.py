@@ -79,7 +79,7 @@ def generate_excel_report(
         if result.metadata.date_range else ""
 
     # ── Title row ──
-    ws.merge_cells("A1:H1")
+    ws.merge_cells("A1:G1")
     title_cell = ws["A1"]
     title_cell.value = f"{display_name or result.template_name}（{date_range}）"
     title_cell.font = Font(name="微软雅黑", bold=True, size=14)
@@ -101,7 +101,7 @@ def generate_excel_report(
     ws.cell(row=7, column=3, value=result.total_row.total_stores)
 
     # ── Table header (row 7) ──
-    headers = ["序号", "片区", "门店", "姓名", "员工ID", "销售金额", "占比", "部门"]
+    headers = ["序号", "部门", "门店", "姓名", "员工ID", "销售金额", "占比"]
     header_row = 9
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_idx, value=header)
@@ -112,13 +112,15 @@ def generate_excel_report(
 
     # ── Data rows ──
     # Collect all values for auto-width calculation
-    all_values: dict[int, list[str]] = {c: [] for c in range(1, 9)}
+    all_values: dict[int, list[str]] = {c: [] for c in range(1, 8)}
     for i, row in enumerate(result.rows):
         r = header_row + 1 + i
         ws.cell(row=r, column=1, value=row.seq).border = THIN_BORDER
         all_values[1].append(str(row.seq))
-        ws.cell(row=r, column=2, value=row.area).border = THIN_BORDER
-        all_values[2].append(str(row.area))
+        dept_cell = ws.cell(row=r, column=2, value=row.department)
+        dept_cell.border = THIN_BORDER
+        dept_cell.alignment = Alignment(wrap_text=True, vertical="top")
+        all_values[2].append(str(row.department))
         ws.cell(row=r, column=3, value=row.store).border = THIN_BORDER
         all_values[3].append(str(row.store))
         ws.cell(row=r, column=4, value=row.name).border = THIN_BORDER
@@ -139,11 +141,6 @@ def generate_excel_report(
         pct_cell.border = THIN_BORDER
         all_values[7].append(pct_str)
 
-        dept_cell = ws.cell(row=r, column=8, value=row.department)
-        dept_cell.border = THIN_BORDER
-        dept_cell.alignment = Alignment(wrap_text=True, vertical="top")
-        all_values[8].append(str(row.department))
-
         # Set row height based on department text length (rough estimate for wrapping)
         dept_len = len(str(row.department))
         if dept_len > 40:
@@ -153,17 +150,17 @@ def generate_excel_report(
 
         # Highlight zero-sales rows
         if row.sales_amount == 0:
-            for c in range(1, 9):
+            for c in range(1, 8):
                 ws.cell(row=r, column=c).font = Font(color="999999")
 
     # ── Total row ──
     total_r = header_row + 1 + len(result.rows)
-    ws.merge_cells(start_row=total_r, start_column=1, end_row=total_r, end_column=5)
+    ws.merge_cells(start_row=total_r, start_column=1, end_row=total_r, end_column=4)
     total_label = ws.cell(row=total_r, column=1, value="合计")
     total_label.font = TOTAL_FONT
     total_label.alignment = Alignment(horizontal="center")
     total_label.border = THIN_BORDER
-    for c in range(2, 6):
+    for c in range(2, 5):
         ws.cell(row=total_r, column=c).border = THIN_BORDER
         ws.cell(row=total_r, column=c).font = TOTAL_FONT
 
@@ -177,15 +174,13 @@ def generate_excel_report(
     total_pct_cell.alignment = Alignment(horizontal="right")
     total_pct_cell.border = THIN_BORDER
 
-    ws.cell(row=total_r, column=8).border = THIN_BORDER
-
     # ── Column widths (auto-calculated from content) ──
     # Headers + content max length, with sensible min/max per column role
     col_widths = []
-    col_roles = ["narrow", "narrow", "medium", "medium", "narrow", "money", "narrow", "wide"]
+    col_roles = ["narrow", "medium", "medium", "narrow", "money", "narrow", "wide"]
     col_max = {"narrow": 14, "medium": 22, "money": 18, "wide": 60}
     col_min = {"narrow": 5, "medium": 8, "money": 12, "wide": 20}
-    for c in range(1, 9):
+    for c in range(1, 8):
         role = col_roles[c - 1]
         content_max = max((len(v) for v in all_values.get(c, [])), default=0)
         header_len = len(headers[c - 1])

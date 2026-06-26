@@ -43,9 +43,11 @@ queries:
           os.ThirdStoreId AS 销售门店ID,
           os.ThirdStoreName AS 销售门店,
           ogs.thirdstaffid AS 销售店员ERPID,
-          ogs.thirdstaffname AS 销售店员姓名
+          ogs.thirdstaffname AS 销售店员姓名,
+          sf.departmentstr 部门
       FROM PurchaseMedicineOrder os
       JOIN PurchaseMedicineOrderGood ogs
+      left join staffs sf on ogs.thirdstaffid=sf.thirdstaffid and ogs.EnterpriseID=sf.EnterpriseID and sf.BindStatus=1
         ON os.PurchaseMedicineOrderId = ogs.PurchaseMedicineOrderId
         AND ogs.EnterpriseID = os.EnterpriseID
       WHERE os.EnterpriseID = '{{enterprise_id}}'

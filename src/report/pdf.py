@@ -303,7 +303,7 @@ def generate_pdf_report(
 
     if result.rows:
         # Header
-        table_data = [["序号", "片区", "门店", "姓名", "员工ID", "销售金额", "占比", "部门"]]
+        table_data = [["序号", "部门", "门店", "姓名", "员工ID", "销售金额", "占比"]]
 
         # Collect max content lengths for dynamic column sizing
         col_max_lens = [_display_width(h) for h in table_data[0]]
@@ -312,13 +312,12 @@ def generate_pdf_report(
             pct_str = format_percentage(row.percentage)
             values = [
                 str(row.seq),
-                row.area,
+                row.department,
                 row.store,
                 row.name,
                 row.employee_id,
                 f"¥{row.sales_amount:,.2f}",
                 pct_str,
-                row.department,
             ]
             for j, v in enumerate(values):
                 col_max_lens[j] = max(col_max_lens[j], _display_width(str(v)))

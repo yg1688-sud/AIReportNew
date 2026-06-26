@@ -31,8 +31,8 @@ MARKDOWN_TEMPLATE = """# {display_name}
 
 ## 详细分析
 
-| 序号 | 片区 | 门店 | 姓名 | 员工ID | 销售金额 | 占比 | 部门 |
-|------|------|------|------|--------|----------|------|------|
+| 序号 | 部门 | 门店 | 姓名 | 员工ID | 销售金额 | 占比 |
+|------|------|------|------|--------|----------|------|
 {detail_rows}
 
 ---
@@ -83,8 +83,8 @@ def generate_markdown_report(
         pct = format_percentage(row.percentage)
         dept = row.department.replace("|", "｜")  # Avoid breaking markdown table
         detail_lines.append(
-            f"| {row.seq} | {row.area} | {row.store} | {row.name} "
-            f"| {row.employee_id} | ¥{row.sales_amount:,.2f} | {pct} | {dept} |"
+            f"| {row.seq} | {dept} | {row.store} | {row.name} "
+            f"| {row.employee_id} | ¥{row.sales_amount:,.2f} | {pct} |"
         )
     detail_text = "\n".join(detail_lines) if detail_lines else "| - | - | - | - | - | - | - | - |"
 
