@@ -93,6 +93,7 @@ def _parse_inline_template(tmpl_raw: dict | None) -> TemplateInlineConfig | None
         sort_by=sort_by,
         display_name=tmpl_raw.get("display_name", ""),
         value_field=tmpl_raw.get("value_field", ""),
+        columns=tmpl_raw.get("columns", []),
     )
 
 

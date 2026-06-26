@@ -72,6 +72,7 @@ class TemplateInlineConfig:
     sort_by: list[SortRule] = field(default_factory=list)
     display_name: str = ""
     value_field: str = ""  # numeric sales column (auto-detect if empty)
+    columns: list[str] = field(default_factory=list)  # report columns, empty = default
 
 
 @dataclass

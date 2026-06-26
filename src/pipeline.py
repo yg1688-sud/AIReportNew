@@ -153,27 +153,62 @@ def _run_single_group(
     log.info("pipeline.stage", stage="report", group=qg.name)
     display_name = qg.template.display_name if qg.template else qg.name
     chain_total = analysis_result.chain_total
+    custom_columns = qg.template.columns if qg.template else []
 
-    xlsx_path = generate_excel_report(
-        analysis_result,
-        output_dir=group_output_dir,
-        display_name=display_name,
-        chain_total=chain_total,
-    )
+    if custom_columns:
+        # Use flexible reports with only the configured columns
+        # (file reports auto-compute 占比, so exclude it from display columns)
+        display_cols = [c for c in custom_columns if c != "占比"]
+        col_map = {
+            "序号": "seq", "门店": "store", "部门": "department",
+            "片区": "area", "姓名": "name", "员工ID": "employee_id",
+            "销售金额": "sales_amount",
+        }
+        report_data = pd.DataFrame([
+            {col: getattr(r, col_map[col], "") for col in display_cols}
+            for r in analysis_result.rows
+        ])
+        value_col = "销售金额" if "销售金额" in custom_columns else display_cols[0]
 
-    pdf_path = ""
-    if generate_pdf:
-        try:
-            from src.report.pdf import generate_pdf_report
-            pdf_path = generate_pdf_report(
-                analysis_result,
-                output_dir=group_output_dir,
-                display_name=display_name,
-                chain_total=chain_total,
-                chart_paths=chart_paths,
-            )
-        except Exception as e:
-            log.warning("pipeline.pdf_failed", group=qg.name, error=str(e))
+        from src.report.file_excel import generate_file_excel_report
+        xlsx_path = generate_file_excel_report(
+            data=report_data, value_col=value_col,
+            output_dir=group_output_dir,
+            file_label=qg.name, chart_paths=chart_paths,
+        )
+
+        pdf_path = ""
+        if generate_pdf:
+            try:
+                from src.report.file_pdf import generate_file_pdf_report
+                pdf_path = generate_file_pdf_report(
+                    data=report_data, value_col=value_col,
+                    output_dir=group_output_dir,
+                    file_label=qg.name, chart_paths=chart_paths,
+                )
+            except Exception as e:
+                log.warning("pipeline.pdf_failed", group=qg.name, error=str(e))
+    else:
+        xlsx_path = generate_excel_report(
+            analysis_result,
+            output_dir=group_output_dir,
+            display_name=display_name,
+            chain_total=chain_total,
+        )
+
+        pdf_path = ""
+        if generate_pdf:
+            try:
+                from src.report.pdf import generate_pdf_report
+                pdf_path = generate_pdf_report(
+                    analysis_result,
+                    output_dir=group_output_dir,
+                    display_name=display_name,
+                    chain_total=chain_total,
+                    chart_paths=chart_paths,
+                )
+            except Exception as e:
+                log.warning("pipeline.pdf_failed", group=qg.name, error=str(e))
 
     # Determine display date range
     raw_start = qg.parameters.get("start_date", "")

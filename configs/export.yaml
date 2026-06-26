@@ -143,6 +143,7 @@ queries:
         - field: "销售金额"
           order: "desc"
       value_field: "销售金额"
+      columns: ["门店", "销售金额", "占比"]
 
   # ─── 查询组3: 员工花名册（纯导出，不做分析） ───
   staff-list:
