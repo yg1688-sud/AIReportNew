@@ -148,11 +148,13 @@ def generate_file_excel_report(
             fmt = _detect_format(str(col_name))
             if fmt == "money" and isinstance(val, (int, float)):
                 cell.number_format = _MONEY_FORMAT
-                cell.alignment = Alignment(horizontal="right")
+                cell.alignment = Alignment(horizontal="center")
             elif fmt in ("percent", "number") or col_name == pct_col_name:
-                cell.alignment = Alignment(horizontal="right")
-            elif fmt == "text" and len(str_val) > 30:
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                cell.alignment = Alignment(horizontal="center")
+            elif len(str_val) > 30:
+                cell.alignment = Alignment(horizontal="center", wrap_text=True, vertical="top")
+            else:
+                cell.alignment = Alignment(horizontal="center")
 
         # Auto row height for rows with long text
         if max_text_len > 40:

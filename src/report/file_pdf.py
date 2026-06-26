@@ -285,7 +285,7 @@ def generate_file_pdf_report(
         ("FONTSIZE", (0, 0), (-1, 0), 9),
         ("FONTSIZE", (0, 1), (-1, -1), 9),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("ALIGN", (1, 0), (1, -1), "CENTER"),
         ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F2F6FC")),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -356,7 +356,7 @@ def generate_file_pdf_report(
         for col_idx, col_name in enumerate(all_columns):
             fmt = _detect_format(str(col_name))
             if fmt in ("money", "percent", "number") or col_name == pct_col_name:
-                detail_style.append(("ALIGN", (col_idx, 0), (col_idx, -1), "RIGHT"))
+                detail_style.append(("ALIGN", (col_idx, 0), (col_idx, -1), "CENTER"))
 
         detail_table.setStyle(TableStyle(detail_style))
         story.append(detail_table)

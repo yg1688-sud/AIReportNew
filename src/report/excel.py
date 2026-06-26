@@ -87,6 +87,7 @@ def generate_excel_report(
     ws.row_dimensions[1].height = 30
 
     # ── Summary rows ──
+    right_align = Alignment(horizontal="center")
     actual_chain = chain_total if chain_total else result.chain_total
     ws.cell(row=3, column=1, value="连锁月度总销售额：").font = Font(bold=True)
     ws.cell(row=3, column=3, value=actual_chain).number_format = MONEY_FORMAT
@@ -94,11 +95,11 @@ def generate_excel_report(
     ws.cell(row=4, column=3, value=result.total_row.total_sales).number_format = MONEY_FORMAT
     pct = (result.total_row.total_sales / actual_chain * 100) if actual_chain > 0 else 0.0
     ws.cell(row=5, column=1, value="占比：").font = Font(bold=True)
-    ws.cell(row=5, column=3, value=f"{pct:.2f}%")
+    ws.cell(row=5, column=3, value=f"{pct:.2f}%").alignment = right_align
     ws.cell(row=6, column=1, value="有销售记录员工数：").font = Font(bold=True)
-    ws.cell(row=6, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}")
+    ws.cell(row=6, column=3, value=f"{result.total_row.total_employees} / {len(result.rows)}").alignment = right_align
     ws.cell(row=7, column=1, value="覆盖门店数：").font = Font(bold=True)
-    ws.cell(row=7, column=3, value=result.total_row.total_stores)
+    ws.cell(row=7, column=3, value=result.total_row.total_stores).alignment = right_align
 
     # ── Table header (row 7) ──
     headers = ["序号", "部门", "门店", "姓名", "员工ID", "销售金额", "占比"]
@@ -115,29 +116,33 @@ def generate_excel_report(
     all_values: dict[int, list[str]] = {c: [] for c in range(1, 8)}
     for i, row in enumerate(result.rows):
         r = header_row + 1 + i
-        ws.cell(row=r, column=1, value=row.seq).border = THIN_BORDER
+        c_cell = ws.cell(row=r, column=1, value=row.seq)
+        c_cell.border = THIN_BORDER; c_cell.alignment = Alignment(horizontal="center")
         all_values[1].append(str(row.seq))
         dept_cell = ws.cell(row=r, column=2, value=row.department)
         dept_cell.border = THIN_BORDER
-        dept_cell.alignment = Alignment(wrap_text=True, vertical="top")
+        dept_cell.alignment = Alignment(horizontal="center", wrap_text=True, vertical="top")
         all_values[2].append(str(row.department))
-        ws.cell(row=r, column=3, value=row.store).border = THIN_BORDER
+        c_cell = ws.cell(row=r, column=3, value=row.store)
+        c_cell.border = THIN_BORDER; c_cell.alignment = Alignment(horizontal="center")
         all_values[3].append(str(row.store))
-        ws.cell(row=r, column=4, value=row.name).border = THIN_BORDER
+        c_cell = ws.cell(row=r, column=4, value=row.name)
+        c_cell.border = THIN_BORDER; c_cell.alignment = Alignment(horizontal="center")
         all_values[4].append(str(row.name))
-        ws.cell(row=r, column=5, value=row.employee_id).border = THIN_BORDER
+        c_cell = ws.cell(row=r, column=5, value=row.employee_id)
+        c_cell.border = THIN_BORDER; c_cell.alignment = Alignment(horizontal="center")
         all_values[5].append(str(row.employee_id))
 
         sales_cell = ws.cell(row=r, column=6, value=row.sales_amount)
         sales_cell.number_format = MONEY_FORMAT
-        sales_cell.alignment = Alignment(horizontal="right")
+        sales_cell.alignment = Alignment(horizontal="center")
         sales_cell.border = THIN_BORDER
         all_values[6].append(f"{row.sales_amount:,.2f}")
 
         from src.analysis.calculator import format_percentage
         pct_str = format_percentage(row.percentage)
         pct_cell = ws.cell(row=r, column=7, value=pct_str)
-        pct_cell.alignment = Alignment(horizontal="right")
+        pct_cell.alignment = Alignment(horizontal="center")
         pct_cell.border = THIN_BORDER
         all_values[7].append(pct_str)
 
@@ -155,12 +160,12 @@ def generate_excel_report(
 
     # ── Total row ──
     total_r = header_row + 1 + len(result.rows)
-    ws.merge_cells(start_row=total_r, start_column=1, end_row=total_r, end_column=4)
+    ws.merge_cells(start_row=total_r, start_column=1, end_row=total_r, end_column=5)
     total_label = ws.cell(row=total_r, column=1, value="合计")
     total_label.font = TOTAL_FONT
     total_label.alignment = Alignment(horizontal="center")
     total_label.border = THIN_BORDER
-    for c in range(2, 5):
+    for c in range(2, 6):
         ws.cell(row=total_r, column=c).border = THIN_BORDER
         ws.cell(row=total_r, column=c).font = TOTAL_FONT
 
@@ -171,7 +176,7 @@ def generate_excel_report(
 
     total_pct_cell = ws.cell(row=total_r, column=7, value="100.00%")
     total_pct_cell.font = TOTAL_FONT
-    total_pct_cell.alignment = Alignment(horizontal="right")
+    total_pct_cell.alignment = Alignment(horizontal="center")
     total_pct_cell.border = THIN_BORDER
 
     # ── Column widths (auto-calculated from content) ──
