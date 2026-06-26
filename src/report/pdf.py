@@ -324,7 +324,8 @@ def generate_pdf_report(
             # Wrap long text cells in Paragraph for automatic line-wrapping
             wrapped_values = []
             for j, v in enumerate(values):
-                if j in (2, 3, 7) and len(str(v)) > 15:  # store, name, department
+                # Wrap if display width exceeds ~1/8 of available width
+                if _display_width(str(v)) > 15:
                     wrapped_values.append(Paragraph(str(v), styles["td"]))
                 else:
                     wrapped_values.append(str(v))
@@ -334,7 +335,7 @@ def generate_pdf_report(
         avail_width = (landscape(A4)[0] if result.rows else A4[0]) - 24 * mm
         total_len = sum(col_max_lens) or 1
         col_widths = [
-            max(avail_width * cl / total_len, 12 * mm) for cl in col_max_lens
+            max(avail_width * cl / total_len, 15 * mm) for cl in col_max_lens
         ]
         # Ensure total doesn't exceed available width
         width_scale = avail_width / sum(col_widths)

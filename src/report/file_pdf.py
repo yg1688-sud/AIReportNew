@@ -312,10 +312,10 @@ def generate_file_pdf_report(
                 row_values.append(val)
                 col_idx = all_columns.index(col)
                 col_max_lens[col_idx] = max(col_max_lens[col_idx], _display_width(str(val)))
-            # Wrap long text cells in Paragraph
+            # Wrap long text cells in Paragraph for automatic line-wrapping
             wrapped_row = []
             for j, v in enumerate(row_values):
-                if col_max_lens[j] > 20:
+                if _display_width(str(v)) > 12:
                     wrapped_row.append(Paragraph(str(v), styles["td"]))
                 else:
                     wrapped_row.append(str(v))
@@ -325,7 +325,7 @@ def generate_file_pdf_report(
         avail_width = (page_size[0] if page_size else A4[0]) - 24 * mm
         total_len = sum(col_max_lens) or 1
         col_widths = [
-            max(avail_width * cl / total_len, 14 * mm) for cl in col_max_lens
+            max(avail_width * cl / total_len, 16 * mm) for cl in col_max_lens
         ]
         # Ensure total doesn't exceed available width
         width_scale = avail_width / sum(col_widths)

@@ -123,14 +123,19 @@ def generate_bar_chart(
 
     # Dynamic figure width based on label length (long labels → wider canvas)
     max_label = _max_label_len(sorted_data, x_col)
-    dynamic_width = max(12, min(22, 8 + max_label * 0.35))
+    dynamic_width = max(12, min(26, 8 + max_label * 0.5))
     figsize = (dynamic_width, max(6, len(sorted_data) * 0.55))
 
     fig, ax = plt.subplots(figsize=figsize)
+
+    # Reserve left margin for Y-axis labels (proportional to label length)
+    left_margin = max(0.15, min(0.45, 0.12 + max_label * 0.018))
+    fig.subplots_adjust(left=left_margin, right=0.95, top=0.93, bottom=0.08)
+
     bars = ax.barh(sorted_data[x_col], sorted_data[y_col])
 
     # Smaller font for Y-axis labels if they're long
-    y_fontsize = 8 if max_label > 10 else 10
+    y_fontsize = 7 if max_label > 12 else (8 if max_label > 8 else 10)
 
     max_w = max(sorted_data[y_col]) if len(sorted_data) > 0 else 1
     for bar, val in zip(bars, sorted_data[y_col]):
@@ -146,7 +151,6 @@ def generate_bar_chart(
     ax.set_xlabel(x_label or y_col)
     ax.set_ylabel(y_label or x_col)
     ax.tick_params(axis="y", labelsize=y_fontsize)
-    fig.tight_layout(pad=2.0)
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -256,8 +260,14 @@ def generate_funnel_chart(
 
     fig, ax = plt.subplots(figsize=dynamic_figsize)
 
+    # Reserve left/right margin for labels
+    left_margin = max(0.15, min(0.45, 0.12 + max_label * 0.018))
+    fig.subplots_adjust(left=left_margin, right=0.95, top=0.93, bottom=0.05)
+
     bar_h = 0.85  # bar height — tighter
     y_positions = list(reversed(range(n)))  # largest at top
+
+    label_fontsize = 7 if max_label > 12 else (8 if max_label > 8 else 9)
 
     for i, (label, val) in enumerate(zip(labels, values)):
         w = val / max_val
@@ -269,7 +279,7 @@ def generate_funnel_chart(
 
         # Name label — left side
         ax.text(left - 0.01, y_positions[i], label,
-                ha="right", va="center", fontsize=9)
+                ha="right", va="center", fontsize=label_fontsize)
         # Value label — right side
         ax.text(left + w + 0.01, y_positions[i], f"￥{val:,.0f}",
                 ha="left", va="center", fontsize=8, color="#555555")
@@ -283,7 +293,6 @@ def generate_funnel_chart(
     ax.spines["left"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.tick_params(bottom=False, labelbottom=False)
-    fig.tight_layout()
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
