@@ -174,7 +174,7 @@ def _run_single_group(
         xlsx_path = generate_file_excel_report(
             data=report_data, value_col=value_col,
             output_dir=group_output_dir,
-            file_label=qg.name, chart_paths=chart_paths,
+            file_label=qg.name,
         )
 
         pdf_path = ""
