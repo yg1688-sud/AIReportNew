@@ -90,9 +90,10 @@ def generate_file_excel_report(
 
     # ── Compute percentage column ──
     total = data[value_col].sum()
+    from src.analysis.calculator import format_percentage
     data = data.copy()
     data[pct_col_name] = data[value_col].apply(
-        lambda v: f"{v / total * 100:.2f}%" if total > 0 else "0.00%"
+        lambda v: format_percentage(v / total * 100) if total > 0 else "0.00%"
     )
 
     # ── Build workbook ──

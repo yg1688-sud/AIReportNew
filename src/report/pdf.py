@@ -308,7 +308,8 @@ def generate_pdf_report(
         # Collect max content lengths for dynamic column sizing
         col_max_lens = [_display_width(h) for h in table_data[0]]
         for row in result.rows:
-            pct_str = f"{row.percentage:.2f}%"
+            from src.analysis.calculator import format_percentage
+            pct_str = format_percentage(row.percentage)
             values = [
                 str(row.seq),
                 row.area,

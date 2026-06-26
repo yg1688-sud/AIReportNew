@@ -234,10 +234,11 @@ def generate_file_pdf_report(
         pct_col_name = "占比(分析)"
 
     # ── Compute percentage ──
+    from src.analysis.calculator import format_percentage
     total = data[value_col].sum()
     data = data.copy()
     data[pct_col_name] = data[value_col].apply(
-        lambda v: f"{v / total * 100:.2f}%" if total > 0 else "0.00%"
+        lambda v: format_percentage(v / total * 100) if total > 0 else "0.00%"
     )
 
     # ── Build document ──

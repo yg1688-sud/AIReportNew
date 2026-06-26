@@ -3,6 +3,20 @@
 from src.config.models import AnalysisRow, AnalysisTotal
 
 
+def format_percentage(value: float) -> str:
+    """Format a percentage value for display, handling very small values.
+
+    Args:
+        value: Percentage as a number (e.g. 10.39 for 10.39%).
+
+    Returns:
+        Formatted string like "10.39%" or "<0.01%" for tiny values.
+    """
+    if 0 < value < 0.01:
+        return "<0.01%"
+    return f"{value:.2f}%"
+
+
 def calculate_percentages(rows: list[AnalysisRow], total_sales: float) -> list[AnalysisRow]:
     """Calculate each employee's sales percentage.
 

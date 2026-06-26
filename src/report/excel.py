@@ -132,10 +132,12 @@ def generate_excel_report(
         sales_cell.border = THIN_BORDER
         all_values[6].append(f"{row.sales_amount:,.2f}")
 
-        pct_cell = ws.cell(row=r, column=7, value=f"{row.percentage:.2f}%")
+        from src.analysis.calculator import format_percentage
+        pct_str = format_percentage(row.percentage)
+        pct_cell = ws.cell(row=r, column=7, value=pct_str)
         pct_cell.alignment = Alignment(horizontal="right")
         pct_cell.border = THIN_BORDER
-        all_values[7].append(f"{row.percentage:.2f}%")
+        all_values[7].append(pct_str)
 
         dept_cell = ws.cell(row=r, column=8, value=row.department)
         dept_cell.border = THIN_BORDER

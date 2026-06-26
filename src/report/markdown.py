@@ -5,6 +5,7 @@ from pathlib import Path
 
 import structlog
 
+from src.analysis.calculator import format_percentage
 from src.config.models import AnalysisResult
 
 log = structlog.get_logger()
@@ -42,7 +43,7 @@ MARKDOWN_TEMPLATE = """# {display_name}
 |------|-----|
 | 合计销售金额 | ¥{total_sales:,.2f} |
 | 连锁月度总销售额 | ¥{chain_total:,.2f} |
-| 占比 | {percentage:.2f}% |
+| 占比 | {percentage} |
 
 ---
 
@@ -79,7 +80,7 @@ def generate_markdown_report(
     # Build detail rows
     detail_lines = []
     for row in result.rows:
-        pct = f"{row.percentage:.2f}%"
+        pct = format_percentage(row.percentage)
         dept = row.department.replace("|", "｜")  # Avoid breaking markdown table
         detail_lines.append(
             f"| {row.seq} | {row.area} | {row.store} | {row.name} "
@@ -120,7 +121,7 @@ def generate_markdown_report(
         match_rate=result.metadata.match_rate,
         detail_rows=detail_text,
         chain_total=actual_chain_total,
-        percentage=pct_of_chain,
+        percentage=format_percentage(pct_of_chain),
         unmatched_section=unmatched_text,
     )
 
