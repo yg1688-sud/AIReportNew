@@ -194,8 +194,10 @@ def validate(config):
               help="跳过 PDF 报告（仅生成 Excel）")
 @click.option("--top-n", type=int, default=10,
               help="排行榜 Top N 数量（默认 10）")
+@click.option("--exclude", default="",
+              help="排除匹配的文件名（支持通配符，如 'staff*'，多个用逗号分隔）")
 def analyze_file(input_path, output_dir, value_col, name_col, group_col,
-                 no_charts, no_pdf, top_n):
+                 no_charts, no_pdf, top_n, exclude):
     """分析任意 .xlsx / .xls / .csv 文件并生成报告。
 
     INPUT_PATH: .xlsx / .xls / .csv 文件路径，或包含这些文件的目录。
@@ -230,6 +232,7 @@ def analyze_file(input_path, output_dir, value_col, name_col, group_col,
             generate_charts=not no_charts,
             generate_pdf=not no_pdf,
             top_n=top_n,
+            exclude=exclude,
         )
     except ValueError as e:
         click.echo(f"[ERROR] {e}", err=True)

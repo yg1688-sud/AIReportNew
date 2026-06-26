@@ -266,6 +266,7 @@ def run_file_analysis(
 def run_file_analysis_batch(
     input_path: str,
     output_dir: str = "output/reports",
+    exclude: str = "",
     **kwargs,
 ) -> list[FileAnalysisResult]:
     """Process a directory of table files or a single file.
@@ -276,11 +277,15 @@ def run_file_analysis_batch(
     Args:
         input_path: Path to a file or directory.
         output_dir: Directory for generated reports.
+        exclude: Comma-separated filename patterns to skip (supports wildcards).
         **kwargs: Passed through to run_file_analysis().
 
     Returns:
         List of FileAnalysisResult, one per processed file.
     """
+    import fnmatch as _fnmatch
+    exclude_patterns = [p.strip() for p in exclude.split(",") if p.strip()]
+
     results: list[FileAnalysisResult] = []
 
     if os.path.isdir(input_path):
@@ -289,6 +294,17 @@ def run_file_analysis_batch(
         for ext in sorted(_SUPPORTED_EXTENSIONS):
             files.extend(glob.glob(os.path.join(input_path, f"*{ext}")))
         files.sort()
+
+        # Apply exclude filters
+        if exclude_patterns:
+            before = len(files)
+            files = [
+                f for f in files
+                if not any(_fnmatch.fnmatch(os.path.basename(f), pat) for pat in exclude_patterns)
+            ]
+            skipped = before - len(files)
+            if skipped > 0:
+                print(f"[INFO] 跳过 {skipped} 个文件（匹配排除规则）")
 
         if not files:
             print(f"[WARN] 目录中未找到支持的文件 (支持: {', '.join(sorted(_SUPPORTED_EXTENSIONS))})")
