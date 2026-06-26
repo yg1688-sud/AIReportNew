@@ -333,13 +333,16 @@ def generate_charts_for_analysis(
     )
     chart_paths.append(bar_path)
 
-    # ── Pie chart (employee sales distribution) ──
+    # ── Pie chart (auto-detect: store vs employee distribution) ──
+    # If most rows have name == store, it's store-level data
+    same_count = sum(1 for r in rows if r.name == r.store and r.store)
+    dist_label = "门店销售分布" if (same_count > len(rows) * 0.5) else "员工销售分布"
     pie_path = str(Path(output_dir) / f"chart_pie_{result.template_name}_{ts}.png")
     generate_pie_chart(
         data=df,
         label_col="name",
         value_col="sales_amount",
-        title=f"{result.template_name} — 员工销售分布",
+        title=f"{result.template_name} — {dist_label}",
         output_path=pie_path,
         font_path=font_path,
     )
