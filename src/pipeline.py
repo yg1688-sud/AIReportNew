@@ -286,6 +286,9 @@ def run_full_pipeline(
         print(f"[GROUP] {name}")
         print(f"{'='*50}")
 
+        # Sync query group parameters to root config for analysis (date_range etc.)
+        config.parameters.update(qg.parameters)
+
         try:
             report = _run_single_group(
                 config, qg,
