@@ -110,7 +110,7 @@ def _run_single_group(
     if not qg.template:
         # Export-only mode — no analysis or report
         print(f"[OK] [{qg.name}] 纯导出模式（无 template），跳过分析和报告")
-        return AnalysisReport(template_name=qg.name, excel_path=export_result.file_path)
+        return AnalysisReport(template_name=qg.name, markdown_path=export_result.file_path)
 
     from src.template.auto import auto_generate_template
     template = auto_generate_template(data, qg.name, qg.template)
@@ -180,6 +180,7 @@ def _run_single_group(
         chart_paths=chart_paths,
         template_name=qg.name,
         date_range=(raw_start, display_end),
+        markdown_path=export_result.file_path,  # reuse field for export path
     )
 
 
@@ -250,7 +251,7 @@ def run_full_pipeline(
     executed = 0
     failed = 0
     output_dir = config.output_dir.replace("exports", "reports")
-    export_only_files: set[str] = set()  # files from query groups without template
+    exported_by_pipeline: set[str] = set()  # ALL files exported by this run
 
     for name, qg in query_groups.items():
         # Apply date overrides to each group's parameters
@@ -275,9 +276,10 @@ def run_full_pipeline(
             )
             reports.append(report)
             executed += 1
-            # Track export-only files to skip in file analysis phase
-            if not qg.template and report.excel_path:
-                export_only_files.add(os.path.abspath(report.excel_path))
+            # Track pipeline-exported files via the export path
+            export_path = report.markdown_path or report.excel_path
+            if export_path and os.path.isfile(export_path):
+                exported_by_pipeline.add(os.path.abspath(export_path))
         except Exception as e:
             failed += 1
             errors.append(f"[{name}] {e}")
@@ -295,22 +297,10 @@ def run_full_pipeline(
             exported_files.extend(_glob.glob(os.path.join(exports_dir, ext)))
         exported_files.sort()
 
-        # Only process files created during this pipeline run
-        exported_files = [
-            f for f in exported_files
-            if os.path.getmtime(f) >= pipeline_start
-        ]
-
-        # Skip files from export-only query groups (e.g. staff roster)
-        if export_only_files:
-            before = len(exported_files)
-            exported_files = [
-                f for f in exported_files
-                if os.path.abspath(f) not in export_only_files
-            ]
-            skipped = before - len(exported_files)
-            if skipped > 0:
-                print(f"\n[INFO] 跳过 {skipped} 个纯导出文件（无需分析）")
+        # Phase 2 only handles external files — skip all pipeline-exported files
+        exported_files = [f for f in exported_files if os.path.abspath(f) not in exported_by_pipeline]
+        # Also skip files created before this run
+        exported_files = [f for f in exported_files if os.path.getmtime(f) >= pipeline_start]
 
         if exported_files:
             print(f"\n{'='*50}")
