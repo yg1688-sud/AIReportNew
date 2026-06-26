@@ -99,6 +99,10 @@ def _run_single_group(
     # ── Create per-file subdirectory (matches analyze-file naming) ──
     export_stem = os.path.splitext(os.path.basename(export_result.file_path))[0]
     group_output_dir = os.path.join(output_dir, export_stem)
+    # Clean up previous reports before regenerating
+    import shutil
+    if os.path.isdir(group_output_dir):
+        shutil.rmtree(group_output_dir)
 
     # ── Stage 2: Load data ──
     data = pd.read_excel(export_result.file_path)
@@ -253,6 +257,19 @@ def run_full_pipeline(
     executed = 0
     failed = 0
     output_dir = config.output_dir.replace("exports", "reports")
+    # Clean up old report directories and old exports from previous runs
+    import shutil as _shutil
+    if os.path.isdir(output_dir):
+        for item in os.listdir(output_dir):
+            item_path = os.path.join(output_dir, item)
+            if os.path.isdir(item_path):
+                _shutil.rmtree(item_path)
+    exports_dir = config.output_dir
+    if os.path.isdir(exports_dir):
+        for item in os.listdir(exports_dir):
+            item_path = os.path.join(exports_dir, item)
+            if os.path.isfile(item_path) and item.endswith(('.xlsx', '.xls')):
+                os.remove(item_path)
     exported_by_pipeline: set[str] = set()  # ALL files exported by this run
 
     for name, qg in query_groups.items():
@@ -299,10 +316,10 @@ def run_full_pipeline(
             exported_files.extend(_glob.glob(os.path.join(exports_dir, ext)))
         exported_files.sort()
 
-        # Phase 2 only handles external files — skip all pipeline-exported files
-        exported_files = [f for f in exported_files if os.path.abspath(f) not in exported_by_pipeline]
-        # Also skip files created before this run
+        # Only external files created since pipeline start (not old files)
         exported_files = [f for f in exported_files if os.path.getmtime(f) >= pipeline_start]
+        # Skip files from pipeline query groups (already have Phase 1 reports)
+        exported_files = [f for f in exported_files if os.path.abspath(f) not in exported_by_pipeline]
 
         if exported_files:
             print(f"\n{'='*50}")

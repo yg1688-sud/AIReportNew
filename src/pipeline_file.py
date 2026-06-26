@@ -90,6 +90,10 @@ def run_file_analysis(
 
     # ── Create per-file subdirectory under output_dir ──
     file_output_dir = os.path.join(output_dir, file_label)
+    # Clean up previous reports before regenerating
+    import shutil
+    if os.path.isdir(file_output_dir):
+        shutil.rmtree(file_output_dir)
 
     log.info("file_analysis.start", file=file_path)
 
