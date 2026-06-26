@@ -284,7 +284,7 @@ def run_full_pipeline(
             log.error("pipeline.group_failed", group=name, error=str(e))
             print(f"[FAIL] [{name}] {e}")
 
-    # ── File analysis phase: analyze all exported files ──
+    # ── File analysis phase: only analyze files created during this run ──
     exports_dir = config.output_dir
     import glob as _glob
     file_results: list = []
@@ -294,6 +294,12 @@ def run_full_pipeline(
         for ext in supported_exts:
             exported_files.extend(_glob.glob(os.path.join(exports_dir, ext)))
         exported_files.sort()
+
+        # Only process files created during this pipeline run
+        exported_files = [
+            f for f in exported_files
+            if os.path.getmtime(f) >= pipeline_start
+        ]
 
         # Skip files from export-only query groups (e.g. staff roster)
         if export_only_files:
