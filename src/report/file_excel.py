@@ -55,15 +55,16 @@ def generate_file_excel_report(
     output_dir: str = "output/reports",
     file_label: str = "file_analysis",
     chart_paths: list[str] | None = None,
+    show_summary: bool = True,
 ) -> str:
     """Generate a flexible Excel report from an arbitrary DataFrame.
 
     Report structure:
       Row 1: Title = "文件数据分析报告: {file_label}"
-      Row 3-5: Summary stats (row count, value column, total)
-      Row 7: Headers (all original columns + "占比")
-      Row 8+: Data rows sorted by value_col descending
-      Last row: Total row with sum
+      Row 3-5: Summary stats (if show_summary=True)
+      Row 7: Headers
+      Row 8+: Data rows
+      Last row: Total row
 
     Args:
         data: The DataFrame to report on (sorted by value_col descending).
@@ -115,17 +116,18 @@ def generate_file_excel_report(
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 30
 
-    # ── Rows 3-5: Summary ──
-    ws.cell(row=3, column=1, value="数据行数：").font = Font(bold=True)
-    ws.cell(row=3, column=2, value=len(data))
-    ws.cell(row=4, column=1, value="数值列：").font = Font(bold=True)
-    ws.cell(row=4, column=2, value=value_col)
-    ws.cell(row=5, column=1, value="合计：").font = Font(bold=True)
-    total_cell = ws.cell(row=5, column=2, value=total)
-    total_cell.number_format = _MONEY_FORMAT
-
-    # ── Row 7: Headers ──
-    header_row = 7
+    # ── Rows 3-5: Summary (optional) ──
+    if show_summary:
+        ws.cell(row=3, column=1, value="数据行数：").font = Font(bold=True)
+        ws.cell(row=3, column=2, value=len(data))
+        ws.cell(row=4, column=1, value="数值列：").font = Font(bold=True)
+        ws.cell(row=4, column=2, value=value_col)
+        ws.cell(row=5, column=1, value="合计：").font = Font(bold=True)
+        total_cell = ws.cell(row=5, column=2, value=total)
+        total_cell.number_format = _MONEY_FORMAT
+        header_row = 7
+    else:
+        header_row = 3
     for col_idx, col_name in enumerate(all_columns, 1):
         cell = ws.cell(row=header_row, column=col_idx, value=col_name)
         cell.font = _HEADER_FONT
