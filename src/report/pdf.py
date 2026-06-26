@@ -45,6 +45,17 @@ _LINUX_FONT_CANDIDATES = [
 ]
 
 
+def _display_width(s: str) -> int:
+    """Approximate display width: CJK chars ≈ 2, ASCII ≈ 1."""
+    w = 0
+    for ch in str(s):
+        if '一' <= ch <= '鿿' or '　' <= ch <= '〿' or '＀' <= ch <= '￯':
+            w += 2
+        else:
+            w += 1
+    return w
+
+
 def _discover_chinese_font() -> str | None:
     """Search for a Chinese-capable TTF/OTC font on the system."""
     for path in _WIN_FONT_CANDIDATES + _LINUX_FONT_CANDIDATES:
@@ -294,9 +305,11 @@ def generate_pdf_report(
         # Header
         table_data = [["序号", "片区", "门店", "姓名", "员工ID", "销售金额", "占比", "部门"]]
 
+        # Collect max content lengths for dynamic column sizing
+        col_max_lens = [_display_width(h) for h in table_data[0]]
         for row in result.rows:
             pct_str = f"{row.percentage:.2f}%"
-            table_data.append([
+            values = [
                 str(row.seq),
                 row.area,
                 row.store,
@@ -305,20 +318,27 @@ def generate_pdf_report(
                 f"¥{row.sales_amount:,.2f}",
                 pct_str,
                 row.department,
-            ])
+            ]
+            for j, v in enumerate(values):
+                col_max_lens[j] = max(col_max_lens[j], _display_width(str(v)))
+            # Wrap long text cells in Paragraph for automatic line-wrapping
+            wrapped_values = []
+            for j, v in enumerate(values):
+                if j in (2, 3, 7) and len(str(v)) > 15:  # store, name, department
+                    wrapped_values.append(Paragraph(str(v), styles["td"]))
+                else:
+                    wrapped_values.append(str(v))
+            table_data.append(wrapped_values)
 
-        # Calculate column widths (landscape: ~277mm usable)
+        # Calculate column widths dynamically based on content
         avail_width = (landscape(A4)[0] if result.rows else A4[0]) - 24 * mm
+        total_len = sum(col_max_lens) or 1
         col_widths = [
-            avail_width * 0.04,   # seq
-            avail_width * 0.08,   # area
-            avail_width * 0.14,   # store
-            avail_width * 0.09,   # name
-            avail_width * 0.09,   # employee_id
-            avail_width * 0.11,   # sales
-            avail_width * 0.07,   # percentage
-            avail_width * 0.38,   # department
+            max(avail_width * cl / total_len, 12 * mm) for cl in col_max_lens
         ]
+        # Ensure total doesn't exceed available width
+        width_scale = avail_width / sum(col_widths)
+        col_widths = [w * width_scale for w in col_widths]
 
         detail_table = Table(table_data, colWidths=col_widths, repeatRows=1)
         detail_style = [

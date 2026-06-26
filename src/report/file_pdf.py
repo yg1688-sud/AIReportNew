@@ -48,6 +48,17 @@ _LINUX_FONT_CANDIDATES = [
 ]
 
 
+def _display_width(s: str) -> int:
+    """Approximate display width: CJK chars ≈ 2, ASCII ≈ 1."""
+    w = 0
+    for ch in str(s):
+        if '一' <= ch <= '鿿' or '　' <= ch <= '〿' or '＀' <= ch <= '￯':
+            w += 2
+        else:
+            w += 1
+    return w
+
+
 def _discover_chinese_font() -> str | None:
     """Search for a Chinese-capable TTF/OTC font on the system."""
     for path in _WIN_FONT_CANDIDATES + _LINUX_FONT_CANDIDATES:
@@ -291,18 +302,36 @@ def generate_file_pdf_report(
     if len(data) > 0:
         all_columns = list(data.columns)
 
-        # Build table data
+        # Build table data and calculate dynamic column widths
         table_data = [list(all_columns)]  # header row
+        col_max_lens = [_display_width(str(h)) for h in all_columns]
         for _, row in data.iterrows():
-            table_data.append([
-                _format_cell_value(row[col], col) for col in all_columns
-            ])
+            row_values = []
+            for col in all_columns:
+                val = _format_cell_value(row[col], col)
+                row_values.append(val)
+                col_idx = all_columns.index(col)
+                col_max_lens[col_idx] = max(col_max_lens[col_idx], _display_width(str(val)))
+            # Wrap long text cells in Paragraph
+            wrapped_row = []
+            for j, v in enumerate(row_values):
+                if col_max_lens[j] > 20:
+                    wrapped_row.append(Paragraph(str(v), styles["td"]))
+                else:
+                    wrapped_row.append(str(v))
+            table_data.append(wrapped_row)
 
-        # Calculate column widths
+        # Calculate column widths dynamically based on content
         avail_width = (page_size[0] if page_size else A4[0]) - 24 * mm
-        col_width = max(avail_width / n_cols, 18 * mm)
+        total_len = sum(col_max_lens) or 1
+        col_widths = [
+            max(avail_width * cl / total_len, 14 * mm) for cl in col_max_lens
+        ]
+        # Ensure total doesn't exceed available width
+        width_scale = avail_width / sum(col_widths)
+        col_widths = [w * width_scale for w in col_widths]
 
-        detail_table = Table(table_data, colWidths=[col_width] * n_cols, repeatRows=1)
+        detail_table = Table(table_data, colWidths=col_widths, repeatRows=1)
         detail_style = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2B579A")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),

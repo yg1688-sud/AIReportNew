@@ -135,10 +135,14 @@ def generate_file_excel_report(
     # ── Data rows ──
     for i, (_, row) in enumerate(data.iterrows()):
         r = header_row + 1 + i
+        max_text_len = 0
         for col_idx, col_name in enumerate(all_columns, 1):
             val = row[col_name]
             cell = ws.cell(row=r, column=col_idx, value=val)
             cell.border = _THIN_BORDER
+
+            str_val = str(val) if val is not None else ""
+            max_text_len = max(max_text_len, len(str_val))
 
             fmt = _detect_format(str(col_name))
             if fmt == "money" and isinstance(val, (int, float)):
@@ -146,6 +150,14 @@ def generate_file_excel_report(
                 cell.alignment = Alignment(horizontal="right")
             elif fmt in ("percent", "number") or col_name == pct_col_name:
                 cell.alignment = Alignment(horizontal="right")
+            elif fmt == "text" and len(str_val) > 30:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+        # Auto row height for rows with long text
+        if max_text_len > 40:
+            ws.row_dimensions[r].height = max(22, max_text_len // 2)
+        elif max_text_len > 25:
+            ws.row_dimensions[r].height = 18
 
     # ── Total row ──
     total_r = header_row + 1 + len(data)
@@ -179,8 +191,8 @@ def generate_file_excel_report(
         for r in range(header_row + 1, total_r):
             cell_val = ws.cell(row=r, column=col_idx).value
             if cell_val is not None:
-                max_len = max(max_len, min(len(str(cell_val)), 50) + 2)
-        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len, 55)
+                max_len = max(max_len, min(len(str(cell_val)), 80) + 2)
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len, 80)
 
     # ── Embed chart images ──
     if chart_paths and XLImage is not None:

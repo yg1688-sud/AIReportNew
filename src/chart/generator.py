@@ -72,6 +72,29 @@ def _setup_matplotlib_chinese(font_path: str | None = None) -> str | None:
 # ── Chart generators ──
 
 
+def _truncate_label(label: str, max_len: int = 12) -> str:
+    """Truncate a long label for display in chart axes/legends.
+
+    Args:
+        label: Original label string.
+        max_len: Maximum character length before truncation.
+
+    Returns:
+        Truncated label with "…" suffix if too long.
+    """
+    s = str(label)
+    if len(s) > max_len:
+        return s[: max_len - 1] + "…"
+    return s
+
+
+def _max_label_len(data: pd.DataFrame, col: str) -> int:
+    """Return the max string length in a DataFrame column."""
+    if col not in data.columns or data.empty:
+        return 0
+    return int(data[col].astype(str).str.len().max())
+
+
 def generate_bar_chart(
     data: pd.DataFrame,
     x_col: str,
@@ -98,8 +121,16 @@ def generate_bar_chart(
 
     sorted_data = display_data
 
+    # Dynamic figure width based on label length (long labels → wider canvas)
+    max_label = _max_label_len(sorted_data, x_col)
+    dynamic_width = max(12, min(22, 8 + max_label * 0.35))
+    figsize = (dynamic_width, max(6, len(sorted_data) * 0.55))
+
     fig, ax = plt.subplots(figsize=figsize)
     bars = ax.barh(sorted_data[x_col], sorted_data[y_col])
+
+    # Smaller font for Y-axis labels if they're long
+    y_fontsize = 8 if max_label > 10 else 10
 
     max_w = max(sorted_data[y_col]) if len(sorted_data) > 0 else 1
     for bar, val in zip(bars, sorted_data[y_col]):
@@ -114,7 +145,8 @@ def generate_bar_chart(
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel(x_label or y_col)
     ax.set_ylabel(y_label or x_col)
-    fig.tight_layout()
+    ax.tick_params(axis="y", labelsize=y_fontsize)
+    fig.tight_layout(pad=2.0)
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -145,7 +177,7 @@ def generate_pie_chart(
     main = data[data[value_col] >= threshold].copy()
     small_sum = data[data[value_col] < threshold][value_col].sum()
 
-    labels = list(main[label_col])
+    labels = [_truncate_label(l, 20) for l in main[label_col]]
     values = list(main[value_col])
     if small_sum > 0:
         labels.append("其他")
@@ -205,6 +237,10 @@ def generate_funnel_chart(
 
     sorted_data = data.sort_values(by=value_col, ascending=False).head(top_n).copy()
     total = sorted_data[value_col].sum()
+    # Dynamic figure width based on label length
+    max_label = _max_label_len(sorted_data, label_col)
+    dynamic_width = max(8, min(16, 6 + max_label * 0.3))
+    dynamic_figsize = (dynamic_width, max(5, len(sorted_data) * 0.55))
 
     if total <= 0:
         log.warning("chart.funnel_zero_total")
@@ -218,7 +254,7 @@ def generate_funnel_chart(
     n = len(values)
     colors = [plt.cm.Blues(0.35 + 0.65 * (i / max(1, n - 1))) for i in range(n)]
 
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=dynamic_figsize)
 
     bar_h = 0.85  # bar height — tighter
     y_positions = list(reversed(range(n)))  # largest at top

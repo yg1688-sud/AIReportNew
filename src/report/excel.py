@@ -111,24 +111,43 @@ def generate_excel_report(
         cell.border = THIN_BORDER
 
     # ── Data rows ──
+    # Collect all values for auto-width calculation
+    all_values: dict[int, list[str]] = {c: [] for c in range(1, 9)}
     for i, row in enumerate(result.rows):
         r = header_row + 1 + i
         ws.cell(row=r, column=1, value=row.seq).border = THIN_BORDER
+        all_values[1].append(str(row.seq))
         ws.cell(row=r, column=2, value=row.area).border = THIN_BORDER
+        all_values[2].append(str(row.area))
         ws.cell(row=r, column=3, value=row.store).border = THIN_BORDER
+        all_values[3].append(str(row.store))
         ws.cell(row=r, column=4, value=row.name).border = THIN_BORDER
+        all_values[4].append(str(row.name))
         ws.cell(row=r, column=5, value=row.employee_id).border = THIN_BORDER
+        all_values[5].append(str(row.employee_id))
 
         sales_cell = ws.cell(row=r, column=6, value=row.sales_amount)
         sales_cell.number_format = MONEY_FORMAT
         sales_cell.alignment = Alignment(horizontal="right")
         sales_cell.border = THIN_BORDER
+        all_values[6].append(f"{row.sales_amount:,.2f}")
 
         pct_cell = ws.cell(row=r, column=7, value=f"{row.percentage:.2f}%")
         pct_cell.alignment = Alignment(horizontal="right")
         pct_cell.border = THIN_BORDER
+        all_values[7].append(f"{row.percentage:.2f}%")
 
-        ws.cell(row=r, column=8, value=row.department).border = THIN_BORDER
+        dept_cell = ws.cell(row=r, column=8, value=row.department)
+        dept_cell.border = THIN_BORDER
+        dept_cell.alignment = Alignment(wrap_text=True, vertical="top")
+        all_values[8].append(str(row.department))
+
+        # Set row height based on department text length (rough estimate for wrapping)
+        dept_len = len(str(row.department))
+        if dept_len > 40:
+            ws.row_dimensions[r].height = max(30, dept_len // 2)
+        elif dept_len > 25:
+            ws.row_dimensions[r].height = 22
 
         # Highlight zero-sales rows
         if row.sales_amount == 0:
@@ -158,8 +177,20 @@ def generate_excel_report(
 
     ws.cell(row=total_r, column=8).border = THIN_BORDER
 
-    # ── Column widths ──
-    col_widths = [6, 10, 15, 10, 14, 18, 8, 55]
+    # ── Column widths (auto-calculated from content) ──
+    # Headers + content max length, with sensible min/max per column role
+    col_widths = []
+    col_roles = ["narrow", "narrow", "medium", "medium", "narrow", "money", "narrow", "wide"]
+    col_max = {"narrow": 14, "medium": 22, "money": 18, "wide": 60}
+    col_min = {"narrow": 5, "medium": 8, "money": 12, "wide": 20}
+    for c in range(1, 9):
+        role = col_roles[c - 1]
+        content_max = max((len(v) for v in all_values.get(c, [])), default=0)
+        header_len = len(headers[c - 1])
+        # Chinese chars ≈ 2x width
+        raw_width = max(header_len * 2, content_max) + 2
+        width = max(col_min[role], min(raw_width, col_max[role]))
+        col_widths.append(width)
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
